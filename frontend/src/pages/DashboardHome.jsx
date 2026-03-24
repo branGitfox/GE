@@ -1,0 +1,700 @@
+import React, { useEffect, useState } from 'react';
+import axios from 'axios';
+import { API_URL } from '../config';
+import {
+    FiDollarSign, FiBox, FiFileText, FiPackage, FiShoppingCart,
+    FiCheckCircle, FiXCircle, FiRefreshCw, FiChevronLeft, FiChevronRight,
+    FiCalendar, FiRotateCcw, FiTag, FiTrendingUp
+} from 'react-icons/fi';
+import {
+    BarChart, Bar, PieChart, Pie, AreaChart, Area, ComposedChart, Line, XAxis, YAxis,
+    CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell
+} from 'recharts';
+
+const ITEMS_PER_PAGE = 10;
+
+const DashboardHome = () => {
+    const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+    const [startDate, setStartDate] = useState(() => {
+        const d = new Date();
+        return `${d.getFullYear()}-01-01`;
+    });
+    const [endDate, setEndDate] = useState(() => {
+        const d = new Date();
+        return d.toLocaleDateString('en-CA');
+    });
+
+    const [stats, setStats] = useState({
+        totalRevenue: 0,
+        totalPaid: 0,
+        totalUnpaid: 0,
+        revenueToday: 0,
+        revenueWeek: 0,
+        revenueMonth: 0,
+        revenueYear: 0,
+        revenueSelectedYear: 0,
+        revenueSelectedRange: 0,
+        paidSelectedRange: 0,
+        unpaidSelectedRange: 0,
+        paidToday: 0,
+        paidWeek: 0,
+        paidMonth: 0,
+        totalProductsSold: 0,
+        totalRemise: 0,
+    });
+
+    const [totalDepenses, setTotalDepenses] = useState(0);
+    const [totalAchats, setTotalAchats] = useState(0);
+    const [diverseDepenses, setDiverseDepenses] = useState([]);
+    const [produitAchats, setProduitAchats] = useState([]);
+    const [recentProducts, setRecentProducts] = useState([]);
+    const [soldProducts, setSoldProducts] = useState([]);
+    const [topSuppliers, setTopSuppliers] = useState([]);
+    const [financialData, setFinancialData] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+
+    // Pagination states
+    const [soldPage, setSoldPage] = useState(1);
+    const [depensePage, setDepensePage] = useState(1);
+    const [productPage, setProductPage] = useState(1);
+
+    // Search states
+    const [soldSearch, setSoldSearch] = useState('');
+    const [depenseSearch, setDepenseSearch] = useState('');
+    const [productSearch, setProductSearch] = useState('');
+
+    const fetchDashboardData = async () => {
+        setLoading(true);
+        setError(null);
+        try {
+            const params = {
+                year: selectedYear,
+                startDate,
+                endDate
+            };
+
+            const [statsRes, soldRes, financialRes, productsRes, depensesRes, achatsRes, topSuppliersRes] = await Promise.all([
+                axios.get(`${API_URL}/api/factures/stats`, { params }),
+                axios.get(`${API_URL}/api/factures/sold-products`, { params }),
+                axios.get(`${API_URL}/api/factures/financial-stats`, { params }),
+                axios.get(`${API_URL}/api/produits/recent`),
+                axios.get(`${API_URL}/api/depenses`, { params }),
+                axios.get(`${API_URL}/api/produit-achat/stats`, { params }),
+                axios.get(`${API_URL}/api/factures/top-suppliers`, { params })
+            ]);
+
+            setStats(statsRes.data);
+            setSoldProducts(soldRes.data);
+            setFinancialData(financialRes.data);
+            setRecentProducts(productsRes.data);
+            setTopSuppliers(topSuppliersRes.data);
+
+            const dData = depensesRes.data;
+            setDiverseDepenses(dData);
+            setTotalDepenses(dData.reduce((acc, d) => acc + parseFloat(d.montant || 0), 0));
+
+            const aData = achatsRes.data;
+            setProduitAchats(aData);
+            setTotalAchats(aData.reduce((acc, a) => acc + parseFloat(a.total_cout || 0), 0));
+
+            // Reset pagination and search when data changes
+            setSoldPage(1);
+            setDepensePage(1);
+            setProductPage(1);
+            setSoldSearch('');
+            setDepenseSearch('');
+            setProductSearch('');
+        } catch (err) {
+            console.error("Erreur dashboard:", err);
+            setError('Impossible de charger les données.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchDashboardData();
+    }, [selectedYear, startDate, endDate]);
+
+    const formatCurrency = (amount) => {
+        return new Intl.NumberFormat('fr-FR').format(amount || 0) + " Fmg";
+    };
+
+    const COLORS = ['#4F46E5', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];
+    const years = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i);
+
+    const CustomTooltip = ({ active, payload, label }) => {
+        if (active && payload && payload.length) {
+            return (
+                <div className="bg-[#1e222d] p-3 border border-gray-700 shadow-2xl rounded-lg text-gray-200">
+                    <p className="text-sm font-bold text-gray-400 mb-2 border-b border-gray-700 pb-1">{label}</p>
+                    {payload.map((entry, index) => (
+                        <p key={index} className="text-xs font-bold my-1" style={{ color: entry.color }}>
+                            {entry.name}: {parseFloat(entry.value).toLocaleString('fr-FR')} Fmg
+                        </p>
+                    ))}
+                </div>
+            );
+        }
+        return null;
+    };
+
+    // Pagination helpers
+    const paginate = (items, page) => {
+        const start = (page - 1) * ITEMS_PER_PAGE;
+        return items.slice(start, start + ITEMS_PER_PAGE);
+    };
+
+    const totalPages = (items) => Math.ceil(items.length / ITEMS_PER_PAGE);
+
+    // Filtering logic
+    const filteredSoldProducts = soldProducts.filter(p =>
+        p.nom.toLowerCase().includes(soldSearch.toLowerCase())
+    );
+
+    const filteredDiverseDepenses = diverseDepenses.filter(d =>
+        d.nom.toLowerCase().includes(depenseSearch.toLowerCase())
+    );
+
+    const filteredRecentProducts = recentProducts.filter(p =>
+        p.nom.toLowerCase().includes(productSearch.toLowerCase())
+    );
+
+    const renderPagination = (currentPage, total, setPage) => {
+        if (total <= 1) return null;
+        return (
+            <div className="flex items-center justify-between mt-4 pt-2 border-t border-gray-100">
+                <button
+                    onClick={() => setPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className={`p-2 rounded-lg transition-colors ${currentPage === 1
+                        ? 'text-gray-300 cursor-not-allowed'
+                        : 'text-gray-600 hover:bg-gray-100'
+                        }`}
+                >
+                    <FiChevronLeft size={18} />
+                </button>
+                <span className="text-xs font-medium text-gray-600">
+                    Page {currentPage} sur {total}
+                </span>
+                <button
+                    onClick={() => setPage(p => Math.min(total, p + 1))}
+                    disabled={currentPage === total}
+                    className={`p-2 rounded-lg transition-colors ${currentPage === total
+                        ? 'text-gray-300 cursor-not-allowed'
+                        : 'text-gray-600 hover:bg-gray-100'
+                        }`}
+                >
+                    <FiChevronRight size={18} />
+                </button>
+            </div>
+        );
+    };
+
+    const renderSearchInput = (value, onChange, placeholder) => (
+        <div className="relative mb-4">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <FiFileText className="text-gray-400" />
+            </div>
+            <input
+                type="text"
+                className="block w-full pl-10 pr-3 py-2 border border-gray-200 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm transition-all shadow-sm"
+                placeholder={placeholder}
+                value={value}
+                onChange={(e) => {
+                    onChange(e.target.value);
+                    // Reset to page 1 on search
+                    if (onChange === setSoldSearch) setSoldPage(1);
+                    if (onChange === setDepenseSearch) setDepensePage(1);
+                    if (onChange === setProductSearch) setProductPage(1);
+                }}
+            />
+        </div>
+    );
+
+    const totalActualBenefice = soldProducts.reduce((acc, p) => acc + ((p.prix - p.prix_achat) * p.quantite), 0);
+
+    if (loading && !stats.totalRevenue) return (
+        <div className="flex items-center justify-center min-h-screen">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+        </div>
+    );
+
+    return (
+        <div className="font-sans">
+            {/* Header avec Filtres */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+                <div>
+                    <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Tableau de Bord</h1>
+                    <p className="text-gray-500 mt-1">Aperçu analytique de votre activité commerciale</p>
+                </div>
+
+                <div className="bg-white p-3 rounded-xl shadow-sm border border-gray-200 flex flex-wrap items-center gap-4">
+                    <div className="flex items-center gap-2">
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Période :</label>
+                        <div className="flex items-center gap-2 bg-gray-50 p-1 rounded-lg border border-gray-100">
+                            <input
+                                type="date"
+                                value={startDate}
+                                onChange={(e) => setStartDate(e.target.value)}
+                                className="bg-transparent border-none text-sm font-semibold text-gray-700 focus:ring-0 cursor-pointer"
+                            />
+                            <span className="text-gray-400 font-bold">→</span>
+                            <input
+                                type="date"
+                                value={endDate}
+                                onChange={(e) => setEndDate(e.target.value)}
+                                className="bg-transparent border-none text-sm font-semibold text-gray-700 focus:ring-0 cursor-pointer"
+                            />
+                            <button
+                                onClick={() => {
+                                    const d = new Date();
+                                    setStartDate(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`);
+                                    setEndDate(d.toLocaleDateString('en-CA'));
+                                }}
+                                className="p-1.5 text-gray-400 hover:text-indigo-600 transition-colors"
+                                title="Réinitialiser (ce mois)"
+                            >
+                                <FiRotateCcw size={14} />
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="h-6 w-px bg-gray-200 hidden sm:block"></div>
+
+                    <div className="flex items-center gap-2">
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Année :</label>
+                        <select
+                            value={selectedYear}
+                            onChange={(e) => {
+                                const year = parseInt(e.target.value);
+                                setSelectedYear(year);
+                                setStartDate(`${year}-01-01`);
+                                setEndDate(`${year}-12-31`);
+                            }}
+                            className="bg-gray-50 border-none rounded-lg text-sm font-bold text-indigo-700 focus:ring-2 focus:ring-indigo-200 cursor-pointer py-1.5 pl-3 pr-8"
+                        >
+                            {years.map(y => (
+                                <option key={y} value={y}>{y}</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    {/* <button
+                        onClick={fetchDashboardData}
+                        className="p-2 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 transition-all active:scale-95 shadow-sm"
+                        title="Actualiser"
+                    >
+                        <FiRefreshCw className={loading ? "animate-spin" : ""} />
+                    </button> */}
+                </div>
+            </div>
+
+            {/* Cartes des périodes */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                {[
+                    { label: "Aujourd'hui", value: stats.revenueToday, paid: stats.paidToday, color: 'indigo', icon: <FiFileText /> },
+                    { label: "Cette Semaine", value: stats.revenueWeek, paid: stats.paidWeek, color: 'blue', icon: <FiFileText /> },
+                    { label: "Ce Mois", value: stats.revenueMonth, paid: stats.paidMonth, color: 'purple', icon: <FiFileText /> },
+                ].map((card, i) => (
+                    <div key={i} className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex items-center transform transition-transform hover:scale-[1.02]">
+                        <div className={`p-3 bg-${card.color}-50 rounded-full mr-4`}>
+                            {React.cloneElement(card.icon, { className: `text-${card.color}-600 text-xl` })}
+                        </div>
+                        <div>
+                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{card.label}</p>
+                            <h3 className={`text-xl font-black text-${card.color}-700`}>{formatCurrency(card.value)}</h3>
+                            {/* <p className="text-[10px] font-bold text-emerald-600 mt-0.5">💰 Encaissé : {formatCurrency(card.paid)}</p> */}
+                        </div>
+                    </div>
+                ))}
+
+                {/* Carte Sélectionnée Spéciale */}
+                <div className="bg-white p-5 rounded-xl shadow-sm border border-indigo-200 flex flex-col justify-center transform transition-transform hover:scale-[1.02] border-l-4 border-l-indigo-600">
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Période Sélectionnée</p>
+                    <h3 className="text-xl font-black text-gray-900">{formatCurrency(stats.revenueSelectedRange)}</h3>
+                    <div className="flex gap-4 mt-2 pt-2 border-t border-gray-50">
+                        <div>
+                            <p className="text-[9px] text-gray-400 uppercase font-bold">Payé</p>
+                            <p className="text-xs font-black text-emerald-600">{formatCurrency(stats.paidSelectedRange)}</p>
+                        </div>
+                        <div>
+                            <p className="text-[9px] text-gray-400 uppercase font-bold">Reste</p>
+                            <p className="text-xs font-black text-rose-600">{formatCurrency(stats.unpaidSelectedRange)}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Cartes globales - Rangée 1: Balances */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center transform transition-transform hover:scale-[1.02]">
+                    <div className="p-4 bg-blue-50 rounded-xl mr-4">
+                        <FiDollarSign className="text-blue-600 text-2xl" />
+                    </div>
+                    <div>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Revenu Brut Annuel</p>
+                        <h2 className="text-2xl font-black text-gray-900">{formatCurrency(stats.revenueSelectedYear)}</h2>
+                    </div>
+                </div>
+
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center transform transition-transform hover:scale-[1.02]">
+                    <div className="p-4 bg-emerald-50 rounded-xl mr-4">
+                        <FiCheckCircle className="text-emerald-600 text-2xl" />
+                    </div>
+                    <div>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Payé (Global)</p>
+                        <h2 className="text-2xl font-black text-emerald-700">{formatCurrency(stats.totalPaid)}</h2>
+                    </div>
+                </div>
+
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center transform transition-transform hover:scale-[1.02]">
+                    <div className="p-4 bg-rose-50 rounded-xl mr-4">
+                        <FiXCircle className="text-rose-600 text-2xl" />
+                    </div>
+                    <div>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Reste (Global)</p>
+                        <h2 className="text-2xl font-black text-rose-700">{formatCurrency(stats.totalUnpaid)}</h2>
+                    </div>
+                </div>
+            </div>
+
+            {/* Cartes globales - Rangée 2: Analyse */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-orange-100 flex items-center transform transition-transform hover:scale-[1.02]">
+                    <div className="p-4 bg-orange-50 rounded-xl mr-4">
+                        <FiTag className="text-orange-600 text-2xl" />
+                    </div>
+                    <div>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Total Remises</p>
+                        <h2 className="text-2xl font-black text-orange-700">{formatCurrency(stats.totalRemise)}</h2>
+                    </div>
+                </div>
+
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-emerald-100 flex items-center transform transition-transform hover:scale-[1.02]">
+                    <div className="p-4 bg-emerald-50 rounded-xl mr-4">
+                        <FiTrendingUp className="text-emerald-600 text-2xl" />
+                    </div>
+                    <div>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Marge Brute (Ventes)</p>
+                        <h2 className="text-2xl font-black text-emerald-700">{formatCurrency(totalActualBenefice)}</h2>
+                        <p className="text-[10px] text-gray-400 italic mt-0.5">Marge théorique sur produits vendus</p>
+                    </div>
+                </div>
+
+                <div className="bg-gray-900 p-6 rounded-xl shadow-xl text-white transform hover:scale-[1.02] transition-all flex flex-col justify-center">
+                    <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest mb-1">Bénéfice Net (Encaissé — Dépenses)</p>
+                    <h2 className={`text-2xl font-black ${stats.totalPaid - (totalDepenses + totalAchats) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        {formatCurrency(stats.totalPaid - (totalDepenses + totalAchats))}
+                    </h2>
+                    <div className="flex gap-3 mt-2 text-[10px] text-gray-400">
+                        <span>💵 Encaissé : {formatCurrency(stats.totalPaid)}</span>
+                        <span>📉 Dépenses : {formatCurrency(totalDepenses + totalAchats)}</span>
+                    </div>
+                </div>
+            </div>
+
+            {/* Graphique Évolution Financière (Trading Style) */}
+            <div className="bg-[#131722] p-6 rounded-xl shadow-2xl border border-gray-800 mb-8 overflow-hidden relative">
+                <div className="flex items-center justify-between mb-6 relative z-10">
+                    <h3 className="text-xl font-bold text-gray-100 flex items-center tracking-wide">
+                        <FiTrendingUp className="text-[#2ebd85] mr-3" />
+                        Évolution Financière Mensuelle
+                    </h3>
+                    <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-[10px] md:text-xs font-bold text-gray-400 uppercase tracking-wider">
+                        <span className="flex items-center"><span className="w-2 h-2 rounded-sm bg-[#2ebd85] mr-2"></span> Rev. Brut</span>
+                        <span className="flex items-center"><span className="w-2 h-2 rounded-sm bg-[#00b4d8] mr-2"></span> Payé</span>
+                        <span className="flex items-center"><span className="w-2 h-2 rounded-sm bg-[#e0294a] mr-2"></span> Dépenses (Vol)</span>
+                        <span className="flex items-center"><span className="w-2 h-2 rounded-sm bg-[#f7a600] mr-2"></span> Bénéfice</span>
+                    </div>
+                </div>
+                <div className="h-96 w-full relative z-10">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <ComposedChart data={financialData} margin={{ top: 10, right: 30, left: 0, bottom: 10 }}>
+                            <defs>
+                                <linearGradient id="colorRevenueTrading" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor="#2ebd85" stopOpacity={0.4}/>
+                                    <stop offset="95%" stopColor="#2ebd85" stopOpacity={0}/>
+                                </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="2 4" vertical={true} stroke="#2B3139" />
+                            <XAxis dataKey="name" axisLine={{ stroke: '#2B3139' }} tickLine={false} tick={{ fontSize: 11, fill: '#848E9C', fontWeight: 600 }} dy={10} />
+                            <YAxis axisLine={{ stroke: '#2B3139' }} tickLine={false} tick={{ fontSize: 11, fill: '#848E9C', fontWeight: 600 }} tickFormatter={(value) => `${(value / 1000).toLocaleString()}k`} dx={-10} />
+                            <Tooltip content={<CustomTooltip />} cursor={{ fill: '#2B3139', opacity: 0.4 }} />
+                            
+                            {/* Dépenses in background like Volume bars in trading */}
+                            <Bar dataKey="expenses" name="Dépenses" fill="#e0294a" opacity={0.5} barSize={20} radius={[2, 2, 0, 0]} />
+                            
+                            {/* Revenue as an area (like price graph) */}
+                            <Area type="monotone" dataKey="revenue" name="Rev. Brut" stroke="#2ebd85" strokeWidth={2} fillOpacity={1} fill="url(#colorRevenueTrading)" activeDot={{ r: 6, fill: '#2ebd85', stroke: '#131722', strokeWidth: 2 }} />
+                            
+                            {/* Paid and Profit as lines */}
+                            <Line type="stepAfter" dataKey="paid" name="Montant Payé" stroke="#00b4d8" strokeWidth={2} dot={false} activeDot={{ r: 5, fill: '#00b4d8', stroke: '#131722', strokeWidth: 2 }} />
+                            <Line type="monotone" dataKey="profit" name="Bénéfice" stroke="#f7a600" strokeWidth={2} dot={false} activeDot={{ r: 5, fill: '#f7a600', stroke: '#131722', strokeWidth: 2 }} />
+                        </ComposedChart>
+                    </ResponsiveContainer>
+                </div>
+            </div>
+
+            {/* Section Produits */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+                <div className="bg-white p-6 rounded-xl shadow-md border border-gray-100">
+                    <h3 className="text-lg font-bold text-gray-800 mb-6 flex items-center">
+                        <FiBox className="text-purple-600 mr-2" />
+                        Répartition des Ventes (Top 5)
+                    </h3>
+                    <div className="h-80 w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                                <Pie
+                                    data={soldProducts.slice(0, 5)}
+                                    cx="50%"
+                                    cy="50%"
+                                    labelLine={false}
+                                    outerRadius={100}
+                                    innerRadius={65}
+                                    fill="#8884d8"
+                                    dataKey="quantite"
+                                    nameKey="nom"
+                                    paddingAngle={5}
+                                >
+                                    {soldProducts.slice(0, 5).map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                    ))}
+                                </Pie>
+                                <Tooltip content={({ active, payload }) => {
+                                    if (active && payload && payload.length) {
+                                        return (
+                                            <div className="bg-white p-3 border border-gray-100 shadow-xl rounded-xl">
+                                                <p className="text-xs font-bold text-gray-800 mb-1">{payload[0].name}</p>
+                                                <p className="text-xs text-indigo-600 font-extrabold">
+                                                    Quantité: {payload[0].value} {payload[0].payload.unité}
+                                                </p>
+                                            </div>
+                                        );
+                                    }
+                                    return null;
+                                }} />
+                                <Legend verticalAlign="bottom" height={40} iconType="circle" wrapperStyle={{ fontSize: '10px', paddingTop: '20px' }} />
+                            </PieChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+            </div>
+
+            {/* Section Fournisseurs & Produits */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+                {/* Top Fournisseurs */}
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                    <h3 className="text-lg font-bold text-gray-800 mb-6 flex items-center">
+                        <FiTag className="text-orange-600 mr-2" />
+                        Top Fournisseurs (par volume de vente)
+                    </h3>
+                    <div className="overflow-x-auto">
+                        {topSuppliers.length > 0 ? (
+                            <table className="w-full text-xs">
+                                <thead className="bg-gray-50 border-b border-gray-100">
+                                    <tr>
+                                        <th className="text-left py-4 px-3 text-gray-500 font-bold uppercase tracking-widest">Fournisseur</th>
+                                        <th className="text-left py-4 px-3 text-gray-500 font-bold uppercase tracking-widest">Meilleur Produit</th>
+                                        <th className="text-right py-4 px-3 text-gray-500 font-bold uppercase tracking-widest">Articles</th>
+                                        <th className="text-right py-4 px-3 text-gray-500 font-bold uppercase tracking-widest">CA Généré (Fmg)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {topSuppliers.map((sup, index) => (
+                                        <tr key={index} className="border-b border-gray-50 hover:bg-orange-50/30 transition-colors">
+                                            <td className="py-4 px-3 text-gray-900 font-bold">{sup.fournisseur_nom}</td>
+                                            <td className="py-4 px-3 text-gray-600 italic">{sup.best_product_name}</td>
+                                            <td className="py-4 px-3 text-right">
+                                                <span className="bg-orange-100 text-orange-700 py-1 px-2 rounded-lg font-black">{sup.total_items}</span>
+                                            </td>
+                                            <td className="py-4 px-3 text-right font-black text-orange-600">{sup.revenue.toLocaleString()}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        ) : (
+                            <div className="py-12 text-center text-gray-400 font-bold italic">
+                                Aucun fournisseur identifié sur cette période
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                    <h3 className="text-lg font-bold text-gray-800 mb-6 flex items-center">
+                        <FiShoppingCart className="text-indigo-600 mr-2" />
+                        Détails des Produits Vendus
+                    </h3>
+
+                    {renderSearchInput(soldSearch, setSoldSearch, "Chercher un produit...")}
+
+                    <div className="overflow-x-auto">
+                        {filteredSoldProducts.length > 0 ? (
+                            <>
+                                <table className="w-full text-xs">
+                                    <thead className="bg-gray-50 border-b border-gray-100">
+                                        <tr>
+                                            <th className="text-left py-4 px-3 text-gray-500 font-bold uppercase tracking-widest">Produit</th>
+                                            <th className="text-right py-4 px-3 text-gray-500 font-bold uppercase tracking-widest">Vendus</th>
+                                            <th className="text-right py-4 px-3 text-gray-500 font-bold uppercase tracking-widest">CA (Fmg)</th>
+                                            <th className="text-right py-4 px-3 text-gray-500 font-bold uppercase tracking-widest">Bénéfice (Fmg)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {paginate(filteredSoldProducts, soldPage).map((product, index) => {
+                                            const benefice = (product.prix - product.prix_achat) * product.quantite;
+                                            return (
+                                                <tr key={index} className="border-b border-gray-50 hover:bg-indigo-50/30 transition-colors">
+                                                    <td className="py-4 px-3 text-gray-900 font-bold">{product.nom}</td>
+                                                    <td className="py-4 px-3 text-right">
+                                                        <span className="bg-indigo-100 text-indigo-700 py-1 px-2 rounded-lg font-black capitalize">
+                                                            {product.quantite} {product.unité}
+                                                        </span>
+                                                    </td>
+                                                    <td className="py-4 px-3 text-right font-black text-indigo-600">{product.totalRevenue.toLocaleString()}</td>
+                                                    <td className="py-4 px-3 text-right font-black" style={{ color: benefice >= 0 ? '#10B981' : '#EF4444' }}>
+                                                        {benefice >= 0 ? '+' : ''}{benefice.toLocaleString('fr-FR')}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                                {renderPagination(soldPage, totalPages(filteredSoldProducts), setSoldPage)}
+                            </>
+                        ) : (
+                            <div className="py-12 text-center">
+                                <FiBox className="mx-auto text-4xl text-gray-200 mb-2" />
+                                <p className="text-gray-400 font-bold italic">Aucun résultat trouvé</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            {/* Dépenses Recap */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-indigo-100 flex items-center hover:shadow-md transition-all">
+                    <div className="p-4 bg-indigo-50 rounded-2xl mr-4">
+                        <FiFileText className="text-indigo-600 text-2xl" />
+                    </div>
+                    <div>
+                        <p className="text-gray-400 text-xs font-bold uppercase">Dépenses Diverses</p>
+                        <h2 className="text-2xl font-black text-indigo-700">{formatCurrency(totalDepenses)}</h2>
+                    </div>
+                </div>
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-orange-100 flex items-center hover:shadow-md transition-all">
+                    <div className="p-4 bg-orange-50 rounded-2xl mr-4">
+                        <FiShoppingCart className="text-orange-600 text-2xl" />
+                    </div>
+                    <div>
+                        <p className="text-gray-400 text-xs font-bold uppercase">Achats (Stock)</p>
+                        <h2 className="text-2xl font-black text-orange-700">{formatCurrency(totalAchats)}</h2>
+                    </div>
+                </div>
+            </div>
+
+            {/* Listes détaillées */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 pb-10">
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                    <h3 className="text-lg font-bold text-gray-800 mb-6 flex items-center">
+                        <FiDollarSign className="text-green-600 mr-2" />
+                        Dépenses Diverses Récentes
+                    </h3>
+
+                    {renderSearchInput(depenseSearch, setDepenseSearch, "Chercher une dépense...")}
+
+                    <div className="overflow-x-auto">
+                        {filteredDiverseDepenses.length > 0 ? (
+                            <>
+                                <table className="w-full text-xs">
+                                    <thead>
+                                        <tr className="border-b border-gray-100 text-gray-400 uppercase tracking-widest text-[10px]">
+                                            <th className="text-left py-4 font-bold">Date</th>
+                                            <th className="text-left py-4 font-bold">Désignation</th>
+                                            <th className="text-right py-4 font-bold">Montant</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {paginate(filteredDiverseDepenses, depensePage).map((d) => (
+                                            <tr key={d.id} className="border-b border-gray-50 hover:bg-rose-50/30 transition-colors">
+                                                <td className="py-4 text-gray-400 font-bold">{new Date(d.date).toLocaleDateString()}</td>
+                                                <td className="py-4 text-gray-900 font-black">{d.nom}</td>
+                                                <td className="py-4 text-right text-rose-600 font-black">{parseFloat(d.montant).toLocaleString()} Fmg</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                                {renderPagination(depensePage, totalPages(filteredDiverseDepenses), setDepensePage)}
+                            </>
+                        ) : (
+                            <div className="py-12 text-center text-gray-400 font-bold italic">
+                                Aucun résultat trouvé
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                    <h3 className="text-lg font-bold text-gray-800 mb-6 flex items-center">
+                        <FiPackage className="text-indigo-600 mr-2" />
+                        Produits Récents en Stock
+                    </h3>
+
+                    {renderSearchInput(productSearch, setProductSearch, "Chercher un produit...")}
+
+                    <div className="overflow-x-auto">
+                        {filteredRecentProducts.length > 0 ? (
+                            <>
+                                <table className="w-full text-xs">
+                                    <thead>
+                                        <tr className="border-b border-gray-100 text-gray-400 uppercase tracking-widest text-[10px]">
+                                            <th className="text-left py-4 font-bold">Désignation</th>
+                                            <th className="text-right py-4 font-bold">Stock</th>
+                                            <th className="text-right py-4 font-bold">Prix Vente</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {paginate(filteredRecentProducts, productPage).map((p) => {
+                                            const isCartonActive = p.pieces_par_carton > 1;
+                                            // Priorité : unite depuis produit_achat → nom_unite_gros → unité
+                                            const unite_gros = p.unite_achat || p.nom_unite_gros || 'Unité';
+                                            const unite_detail = p['unité'] || 'Pièce';
+                                            const stockStr = isCartonActive
+                                                ? `${Math.floor(p.quantite / p.pieces_par_carton)} ${unite_gros}, ${p.quantite % p.pieces_par_carton} ${unite_detail}`
+                                                : `${p.quantite} ${unite_gros}`;
+
+                                            return (
+                                                <tr key={p.id} className="border-b border-gray-50 hover:bg-blue-50/30 transition-colors">
+                                                    <td className="py-4 text-gray-900 font-black">{p.nom}</td>
+                                                    <td className="py-4 text-right">
+                                                        <span className={`py-1 px-2 rounded-lg font-black ${p.quantite < 10 ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-700'}`}>
+                                                            {stockStr}
+                                                        </span>
+                                                    </td>
+                                                    <td className="py-4 text-right text-blue-600 font-black">
+                                                        {parseFloat(p.prix_carton || p.prix).toLocaleString()} Fmg / {unite_gros}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                                {renderPagination(productPage, totalPages(filteredRecentProducts), setProductPage)}
+                            </>
+                        ) : (
+                            <div className="py-12 text-center text-gray-400 font-bold italic">
+                                Aucun résultat trouvé
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+export default DashboardHome;
