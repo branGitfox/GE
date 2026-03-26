@@ -1,43 +1,34 @@
 import React, { useEffect, useState, useRef } from 'react';
 import axios from 'axios';
 import { API_URL } from '../config';
-import { FaSearch } from 'react-icons/fa';
+import { FaSearch, FaPlus, FaList, FaBox, FaChartBar, FaExclamationTriangle } from 'react-icons/fa';
 import ProduitForm from '../components/produits/ProduitForm';
 import ProduitTable from '../components/produits/ProduitTable';
 import ConfirmModal from '../components/ConfirmModal';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
+const EMPTY_FORM = {
+    nom: '', description: '', stock_cartons: 0, stock_pieces: 0,
+    prix_carton: 0, prix_piece: 0, pieces_par_carton: 1, prix_achat: 0,
+    prix_achat_piece: 0, unité: 'Pièce', nom_unite_gros: 'Carton',
+    category_id: '', fournisseur_id: '', fournisseur_ids: [], entrepot_ids: [],
+    importSourceId: null, stock_threshold: 0
+};
+
 const Produits = () => {
     const [produits, setProduits] = useState([]);
     const [filteredProduits, setFilteredProduits] = useState([]);
-    const [formData, setFormData] = useState({
-        nom: '',
-        description: '',
-        stock_cartons: 0,
-        stock_pieces: 0,
-        prix_carton: 0,
-        prix_piece: 0,
-        pieces_par_carton: 1,
-        prix_achat: 0,
-        unité: 'Pièce',
-        nom_unite_gros: 'Carton',
-        category_id: '',
-        fournisseur_id: '',
-        importSourceId: null,
-        stock_threshold: 0
-    });
+    const [formData, setFormData] = useState(EMPTY_FORM);
     const [editingProduit, setEditingProduit] = useState(null);
     const [isLoading, setIsLoading] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage] = useState(20);
+    const [activeTab, setActiveTab] = useState('list'); // 'list' | 'add'
 
-    // Deletion Modal State
     const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
     const [produitToDelete, setProduitToDelete] = useState(null);
-
-    // Import Conflict Modal State
     const [isImportConflictModalOpen, setIsImportConflictModalOpen] = useState(false);
     const [pendingImportData, setPendingImportData] = useState(null);
     const [isImporting, setIsImporting] = useState(false);
@@ -45,24 +36,19 @@ const Produits = () => {
     const formRef = useRef(null);
     const topRef = useRef(null);
 
+    useEffect(() => { fetchProduits(); }, []);
+
     useEffect(() => {
-        fetchProduits();
+        if (topRef.current) topRef.current.scrollIntoView({ behavior: 'auto' });
     }, []);
 
     useEffect(() => {
-        // Solution hybride
-        if (topRef.current) {
-            topRef.current.scrollIntoView({ behavior: 'auto' });
-        } else {
-            window.scrollTo(0, 0);
-        }
-    }, []);
-    useEffect(() => {
-        const results = produits.filter(produit =>
-            produit.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            produit.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            produit.quantite.toString().includes(searchTerm) ||
-            produit.prix.toString().includes(searchTerm)
+        const lower = searchTerm.toLowerCase();
+        const results = produits.filter(p =>
+            p.nom.toLowerCase().includes(lower) ||
+            (p.description || '').toLowerCase().includes(lower) ||
+            String(p.quantite).includes(searchTerm) ||
+            String(p.prix_carton).includes(searchTerm)
         );
         setFilteredProduits(results);
         setCurrentPage(1);
@@ -70,27 +56,19 @@ const Produits = () => {
 
     const fetchProduits = async () => {
         try {
-            const response = await axios.get(`${API_URL}/api/produits`);
-            if (response.data && response.data.length > 0) {
-                setProduits(response.data);
-                setFilteredProduits(response.data);
-            } else {
-                console.error('Aucun produit trouvé');
-                setProduits([]);
-                setFilteredProduits([]);
-            }
-        } catch (error) {
-            console.error('Erreur lors de la récupération des produits:', error);
+            const r = await axios.get(`${API_URL}/api/produits`);
+            setProduits(r.data || []);
+            setFilteredProduits(r.data || []);
+        } catch (e) {
+            console.error('Erreur récupération produits:', e);
+            setProduits([]);
+            setFilteredProduits([]);
         }
     };
 
     const handleChange = (e) => {
         const { name, value } = e.target;
-        setFormData({ ...formData, [name]: value });
-    };
-
-    const handleSearchChange = (e) => {
-        setSearchTerm(e.target.value);
+        setFormData(prev => ({ ...prev, [name]: value }));
     };
 
     const handleSubmit = async (e) => {
@@ -101,83 +79,46 @@ const Produits = () => {
             (parseFloat(formData.stock_cartons || 0) * parseFloat(formData.pieces_par_carton || 1)) +
             parseFloat(formData.stock_pieces || 0);
 
-        console.log('[DEBUG Frontend Stock Submit]', {
-            stock_cartons: formData.stock_cartons,
-            pieces_par_carton: formData.pieces_par_carton,
-            stock_pieces: formData.stock_pieces,
-            quantiteTotale
-        });
+        if (parseFloat(formData.prix_carton || 0) <= 0) {
+            toast.error(`Le prix de vente (${formData.nom_unite_gros || 'Gros'}) doit être > 0`);
+            setIsLoading(false); return;
+        }
+        if (formData.pieces_par_carton > 1 && parseFloat(formData.prix_piece || 0) <= 0) {
+            toast.error(`Le prix détail (${formData.unité || 'Détail'}) doit être > 0`);
+            setIsLoading(false); return;
+        }
 
         const dataToSend = {
             ...formData,
-            quantite: quantiteTotale
+            quantite: quantiteTotale,
+            // Ensure backward compat: send first fournisseur_id as single field too
+            fournisseur_id: (formData.fournisseur_ids || []).length > 0 ? formData.fournisseur_ids[0] : formData.fournisseur_id || ''
         };
 
-        // Validation du prix de vente
-        if (parseFloat(formData.prix_carton || 0) <= 0) {
-            toast.error(`Le prix de vente (${formData.nom_unite_gros || 'Gros'}) doit être supérieur à 0`);
-            setIsLoading(false);
-            return;
-        }
-
-        if (formData.pieces_par_carton > 1 && parseFloat(formData.prix_piece || 0) <= 0) {
-            toast.error(`Le prix de vente au détail (${formData.unité || 'Détail'}) doit être supérieur à 0`);
-            setIsLoading(false);
-            return;
-        }
-
-        if ((parseFloat(formData.stock_pieces || 0) > 0 || parseFloat(formData.prix_piece || 0) > 0) && parseInt(formData.pieces_par_carton || 1) <= 1) {
-            toast.error(`Veuillez spécifier un nombre valide de ${formData.unité || 'Détail'} par ${formData.nom_unite_gros || 'Gros'} (> 1)`);
-            setIsLoading(false);
-            return;
-        }
-
         try {
-            if (!editingProduit && !formData.nom) {
-                throw new Error("Le nom du produit est requis");
-            }
-
             const url = editingProduit
                 ? `${API_URL}/api/produits/${editingProduit}`
                 : `${API_URL}/api/produits`;
-
             const method = editingProduit ? 'put' : 'post';
 
-            const response = await axios[method](url, dataToSend, {
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
-                }
+            await axios[method](url, dataToSend, {
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` }
             });
 
-
-            toast.success(editingProduit
-                ? 'Produit modifié avec succès'
-                : 'Produit ajouté avec succès');
-
-            // Réinitialiser le formulaire après une opération réussie
-            setFormData({ nom: '', description: '', stock_cartons: 0, stock_pieces: 0, prix_carton: 0, prix_piece: 0, pieces_par_carton: 1, prix_achat: 0, unité: 'Pièce', nom_unite_gros: 'Carton', category_id: '', fournisseur_id: '', importSourceId: null, stock_threshold: 0 });
-
+            toast.success(editingProduit ? 'Produit modifié ✅' : 'Produit ajouté ✅');
+            setFormData(EMPTY_FORM);
             setEditingProduit(null);
             fetchProduits();
             setSearchTerm('');
-            setIsLoading(false);
+            setActiveTab('list');
         } catch (error) {
-            console.error("Erreur complète:", error);
-            console.error("Données de réponse d'erreur:", error.response?.data);
-
             if (error.response?.status === 409 && formData.importSourceId) {
                 setPendingImportData(dataToSend);
                 setIsImportConflictModalOpen(true);
-                setIsLoading(false);
-                return;
+                setIsLoading(false); return;
             }
-
-            toast.error(
-                error.response?.data?.message ||
-                (error.response?.data ? JSON.stringify(error.response.data) : error.message) ||
-                "Erreur lors de l'opération"
-            );
+            toast.error(error.response?.data?.message || error.message || "Erreur lors de l'opération");
+        } finally {
             setIsLoading(false);
         }
     };
@@ -185,21 +126,15 @@ const Produits = () => {
     const confirmImportConflict = async () => {
         setIsImporting(true);
         try {
-            await axios.post(`${API_URL}/api/produits`, {
-                ...pendingImportData,
-                updateExisting: true
-            }, {
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
-                }
+            await axios.post(`${API_URL}/api/produits`, { ...pendingImportData, updateExisting: true }, {
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` }
             });
-            toast.success('Stock mis à jour avec succès via importation');
-            setFormData({ nom: '', description: '', stock_cartons: 0, stock_pieces: 0, prix_carton: 0, prix_piece: 0, pieces_par_carton: 1, prix_achat: 0, unité: 'Pièce', nom_unite_gros: 'Carton', category_id: '', fournisseur_id: '', importSourceId: null, stock_threshold: 0 });
+            toast.success('Stock mis à jour via importation ✅');
+            setFormData(EMPTY_FORM);
             fetchProduits();
-        } catch (retryError) {
-            console.error("Erreur lors de la tentative de mise à jour:", retryError);
-            toast.error("Erreur lors de la tentative de mise à jour");
+            setActiveTab('list');
+        } catch (err) {
+            toast.error('Erreur lors de la mise à jour');
         } finally {
             setIsImporting(false);
             setIsImportConflictModalOpen(false);
@@ -211,7 +146,7 @@ const Produits = () => {
         setEditingProduit(produit.id);
         setFormData({
             nom: produit.nom,
-            description: produit.description,
+            description: produit.description || '',
             stock_cartons: Math.floor(produit.quantite / (produit.pieces_par_carton || 1)),
             stock_pieces: produit.quantite % (produit.pieces_par_carton || 1),
             prix_carton: produit.prix_carton || 0,
@@ -219,32 +154,29 @@ const Produits = () => {
             pieces_par_carton: produit.pieces_par_carton || 1,
             prix_achat: produit.prix_achat || 0,
             prix_achat_piece: produit.prix_achat_piece || 0,
-            unité: produit.unité,
+            unité: produit.unité || 'Pièce',
             nom_unite_gros: produit.nom_unite_gros || 'Carton',
             category_id: produit.category_id || '',
             fournisseur_id: produit.fournisseur_id || '',
+            fournisseur_ids: (produit.fournisseurs_list || []).map(f => f.id),
+            entrepot_ids: (produit.entrepots_list || []).map(e => e.id),
             stock_threshold: produit.stock_threshold || 0
         });
-        if (formRef.current) {
-            formRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
+        setActiveTab('add');
+        setTimeout(() => formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
     };
 
-    const handleDelete = async (id) => {
-        setProduitToDelete(id);
-        setIsConfirmModalOpen(true);
-    };
+    const handleDelete = (id) => { setProduitToDelete(id); setIsConfirmModalOpen(true); };
 
     const confirmDelete = async () => {
         if (!produitToDelete) return;
-
         setIsLoading(true);
         try {
             await axios.delete(`${API_URL}/api/produits/${produitToDelete}`);
-            toast.success('Produit supprimé avec succès');
+            toast.success('Produit supprimé ✅');
             fetchProduits();
-        } catch (error) {
-            toast.error(`Erreur lors de la suppression du produit: ${error.response?.data?.message || error.message}`);
+        } catch (err) {
+            toast.error(`Erreur suppression: ${err.response?.data?.message || err.message}`);
         } finally {
             setIsLoading(false);
             setIsConfirmModalOpen(false);
@@ -253,89 +185,145 @@ const Produits = () => {
     };
 
     const handleCancel = () => {
-        setFormData({ nom: '', description: '', stock_cartons: 0, stock_pieces: 0, prix_carton: 0, prix_piece: 0, pieces_par_carton: 1, prix_achat: 0, unité: 'Pièce', nom_unite_gros: 'Carton', category_id: '', fournisseur_id: '', importSourceId: null, stock_threshold: 0 });
+        setFormData(EMPTY_FORM);
         setEditingProduit(null);
-        setMessage('');
+        setActiveTab('list');
     };
 
-    const handlePageChange = (page) => {
-        setCurrentPage(page);
-    };
+    // Quick stats
+    const totalProduits = produits.length;
+    const ruptureCount = produits.filter(p => p.quantite <= 0).length;
+    const lowStockCount = produits.filter(p => {
+        const ratio = p.pieces_par_carton || 1;
+        const cartons = ratio > 1 ? Math.floor(p.quantite / ratio) : p.quantite;
+        return p.stock_threshold > 0 && cartons <= p.stock_threshold && p.quantite > 0;
+    }).length;
 
     return (
         <div ref={topRef}>
             <ToastContainer position="top-right" autoClose={3000} />
-            <h1 className="text-2xl md:text-3xl font-bold mb-6 text-gray-800 text-center">Gestion des Produits</h1>
 
-            <ProduitForm
-                formData={formData}
-                editingProduit={editingProduit}
-                isLoading={isLoading}
-                handleChange={handleChange}
-                setFormData={setFormData}
-                handleSubmit={handleSubmit}
-                handleCancel={handleCancel}
-                formRef={formRef}
-            />
-
-            <div className="max-w-7xl mx-auto">
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-4">
-                    <h2 className="text-xl font-semibold text-gray-700">Liste des Produits</h2>
-                    <div className="relative w-full md:w-64">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <FaSearch className="text-gray-400" />
+            {/* Hero Header */}
+            <div className="bg-gradient-to-r from-violet-600 via-indigo-600 to-blue-600 rounded-2xl p-6 mb-6 shadow-xl">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                        <h1 className="text-2xl font-bold text-white flex items-center gap-3">
+                            <FaBox className="text-white/80" /> Gestion des Produits
+                        </h1>
+                        <p className="text-white/70 text-sm mt-1">Gérez votre catalogue, votre stock et vos fournisseurs</p>
+                    </div>
+                    {/* Quick Stats */}
+                    <div className="flex gap-3 flex-wrap">
+                        <div className="bg-white/15 backdrop-blur-sm rounded-xl px-4 py-2 border border-white/20 text-center">
+                            <p className="text-2xl font-bold text-white">{totalProduits}</p>
+                            <p className="text-white/70 text-xs">Produits</p>
                         </div>
-                        <input
-                            type="text"
-                            placeholder="Rechercher produits..."
-                            value={searchTerm}
-                            onChange={handleSearchChange}
-                            className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                        />
+                        {ruptureCount > 0 && (
+                            <div className="bg-red-500/30 backdrop-blur-sm rounded-xl px-4 py-2 border border-red-300/30 text-center">
+                                <p className="text-2xl font-bold text-white">{ruptureCount}</p>
+                                <p className="text-white/70 text-xs">Rupture</p>
+                            </div>
+                        )}
+                        {lowStockCount > 0 && (
+                            <div className="bg-amber-500/30 backdrop-blur-sm rounded-xl px-4 py-2 border border-amber-300/30 text-center">
+                                <p className="text-2xl font-bold text-white">{lowStockCount}</p>
+                                <p className="text-white/70 text-xs flex items-center gap-1"><FaExclamationTriangle size={10} /> Faible</p>
+                            </div>
+                        )}
                     </div>
                 </div>
 
-                {filteredProduits.length === 0 ? (
-                    <div className="text-center py-8 text-gray-500 bg-white rounded-xl shadow-sm border border-gray-100">
-                        {searchTerm ?
-                            "Aucun produit ne correspond à votre recherche." :
-                            "Aucun produit trouvé. Commencez par ajouter un nouveau produit."}
-                    </div>
-                ) : (
-                    <ProduitTable
-                        filteredProduits={filteredProduits}
-                        currentPage={currentPage}
-                        itemsPerPage={itemsPerPage}
-                        handleEdit={handleEdit}
-                        handleDelete={handleDelete}
-                        isLoading={isLoading}
-                        onPageChange={handlePageChange}
-                        fetchProduits={fetchProduits}
-                    />
-                )}
+                {/* Tabs */}
+                <div className="flex gap-2 mt-5">
+                    <button
+                        onClick={() => setActiveTab('list')}
+                        className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all ${activeTab === 'list' ? 'bg-white text-violet-700 shadow-md' : 'text-white/80 hover:text-white hover:bg-white/20'}`}
+                    >
+                        <FaList size={13} /> Liste des Produits
+                    </button>
+                    <button
+                        onClick={() => { setActiveTab('add'); if (!editingProduit) setFormData(EMPTY_FORM); }}
+                        className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all ${activeTab === 'add' ? 'bg-white text-violet-700 shadow-md' : 'text-white/80 hover:text-white hover:bg-white/20'}`}
+                    >
+                        <FaPlus size={13} />
+                        {editingProduit ? 'Modifier Produit' : 'Ajouter un Produit'}
+                    </button>
+                </div>
             </div>
+
+            {/* Tab Content */}
+            {activeTab === 'list' ? (
+                <div>
+                    {/* Search bar */}
+                    <div className="mb-4 flex items-center gap-3">
+                        <div className="relative flex-1 max-w-sm">
+                            <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm" />
+                            <input
+                                type="text"
+                                placeholder="Rechercher un produit…"
+                                value={searchTerm}
+                                onChange={e => setSearchTerm(e.target.value)}
+                                className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 transition shadow-sm"
+                            />
+                        </div>
+                        <span className="text-xs text-gray-400 font-medium">
+                            {filteredProduits.length} produit{filteredProduits.length !== 1 ? 's' : ''}
+                        </span>
+                    </div>
+
+                    {filteredProduits.length === 0 ? (
+                        <div className="text-center py-16 bg-white rounded-2xl border border-gray-100 shadow-sm">
+                            <FaBox className="text-gray-200 text-5xl mx-auto mb-4" />
+                            <p className="text-gray-500 font-medium">
+                                {searchTerm ? 'Aucun produit correspond à votre recherche.' : 'Aucun produit. Commencez par en ajouter un.'}
+                            </p>
+                            {!searchTerm && (
+                                <button onClick={() => setActiveTab('add')}
+                                    className="mt-4 px-6 py-2.5 bg-gradient-to-r from-violet-600 to-indigo-600 text-white rounded-xl text-sm font-semibold hover:from-violet-700 hover:to-indigo-700 transition shadow-md">
+                                    <FaPlus className="inline mr-2" /> Ajouter un produit
+                                </button>
+                            )}
+                        </div>
+                    ) : (
+                        <ProduitTable
+                            filteredProduits={filteredProduits}
+                            currentPage={currentPage}
+                            itemsPerPage={itemsPerPage}
+                            handleEdit={handleEdit}
+                            handleDelete={handleDelete}
+                            isLoading={isLoading}
+                            onPageChange={setCurrentPage}
+                            fetchProduits={fetchProduits}
+                        />
+                    )}
+                </div>
+            ) : (
+                <ProduitForm
+                    formData={formData}
+                    editingProduit={editingProduit}
+                    isLoading={isLoading}
+                    handleChange={handleChange}
+                    setFormData={setFormData}
+                    handleSubmit={handleSubmit}
+                    handleCancel={handleCancel}
+                    formRef={formRef}
+                />
+            )}
 
             <ConfirmModal
                 isOpen={isConfirmModalOpen}
-                onClose={() => {
-                    setIsConfirmModalOpen(false);
-                    setProduitToDelete(null);
-                }}
+                onClose={() => { setIsConfirmModalOpen(false); setProduitToDelete(null); }}
                 onConfirm={confirmDelete}
                 title="Supprimer le produit"
                 message="Êtes-vous sûr de vouloir supprimer ce produit ? Cette action est irréversible."
                 isLoading={isLoading}
             />
-
             <ConfirmModal
                 isOpen={isImportConflictModalOpen}
-                onClose={() => {
-                    setIsImportConflictModalOpen(false);
-                    setPendingImportData(null);
-                }}
+                onClose={() => { setIsImportConflictModalOpen(false); setPendingImportData(null); }}
                 onConfirm={confirmImportConflict}
                 title="Produit Existant"
-                message="Ce produit existe déjà. Voulez-vous simplement ajouter la quantité importée au stock existant ?"
+                message="Ce produit existe déjà. Voulez-vous ajouter la quantité importée au stock existant ?"
                 isLoading={isImporting}
             />
         </div>

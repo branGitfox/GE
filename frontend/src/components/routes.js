@@ -11,7 +11,9 @@ export const validRoutes = {
     '/dashboard/categories',
     '/dashboard/depenses',
     '/dashboard/clients-factures',
-    '/dashboard/fournisseurs'
+    '/dashboard/fournisseurs',
+    '/dashboard/entrepots',
+    '/dashboard/logs'
   ],
   Admin: [
     '/dashboard',
@@ -24,6 +26,8 @@ export const validRoutes = {
     '/dashboard/categories',
     '/dashboard/depenses',
     '/dashboard/clients-factures',
-    '/dashboard/fournisseurs'
+    '/dashboard/fournisseurs',
+    '/dashboard/entrepots',
+    '/dashboard/logs'
   ]
 };

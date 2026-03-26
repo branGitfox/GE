@@ -3,166 +3,192 @@ import { API_URL } from '../config';
 import { AuthContext } from '../context/authContext';
 import LogoutButton from '../components/LogoutButton';
 import LowStockAlert from '../components/LowStockAlert';
-import { validRoutes } from '../components/routes'
+import { validRoutes } from '../components/routes';
 import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { FiMenu, FiX, FiUser, FiBox, FiFileText, FiUsers, FiDollarSign, FiHome, FiSettings, FiTag, FiTruck } from 'react-icons/fi';
+import {
+  FiMenu, FiX, FiUser, FiBox, FiFileText, FiUsers, FiDollarSign,
+  FiHome, FiSettings, FiTag, FiTruck, FiArchive, FiActivity
+} from 'react-icons/fi';
+
+const NAV_GROUPS = [
+  {
+    label: 'Principal',
+    items: [
+      { name: 'Tableau de bord', path: '/dashboard', icon: FiHome, color: 'from-blue-500 to-indigo-500' },
+    ]
+  },
+  {
+    label: 'Commerce',
+    items: [
+      { name: 'Facturation', path: '/dashboard/factures2', icon: FiFileText, color: 'from-emerald-500 to-teal-500' },
+      { name: 'Devis (Proforma)', path: '/dashboard/proformas', icon: FiFileText, color: 'from-cyan-500 to-blue-500' },
+      { name: 'Suivi facture client', path: '/dashboard/clients-factures', icon: FiFileText, color: 'from-sky-500 to-cyan-500' },
+      { name: 'Clients', path: '/dashboard/clients', icon: FiUser, color: 'from-violet-500 to-purple-500' },
+    ]
+  },
+  {
+    label: 'Stock & Produits',
+    items: [
+      { name: 'Produits', path: '/dashboard/produits', icon: FiBox, color: 'from-violet-600 to-indigo-600' },
+      { name: 'Catégories', path: '/dashboard/categories', icon: FiTag, color: 'from-pink-500 to-rose-500' },
+      { name: 'Fournisseurs', path: '/dashboard/fournisseurs', icon: FiTruck, color: 'from-orange-500 to-amber-500' },
+      { name: 'Entrepôts', path: '/dashboard/entrepots', icon: FiArchive, color: 'from-teal-500 to-cyan-500' },
+    ]
+  },
+  {
+    label: 'Finance',
+    items: [
+      { name: 'Dépenses', path: '/dashboard/depenses', icon: FiDollarSign, color: 'from-red-500 to-rose-500' },
+    ]
+  },
+  {
+    label: 'Admin',
+    items: [
+      { name: 'Paramètres', path: '/dashboard/settings', icon: FiSettings, color: 'from-gray-500 to-slate-600' },
+      { name: 'Historique', path: '/dashboard/logs', icon: FiActivity, color: 'from-indigo-600 to-blue-700' },
+    ]
+  }
+];
 
 const Dashboard = () => {
   const { user } = useContext(AuthContext);
-  const [menu, setMenu] = useState([]);
   const [image, setImage] = useState('');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
 
-  const closeSidebar = () => {
-    setIsSidebarOpen(false);
-  };
+  const closeSidebar = () => setIsSidebarOpen(false);
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [location.pathname]);
 
-  // Icônes – taille légèrement réduite pour plus de compacité
-  const menuIcons = {
-    'Tableau de bord': <FiHome className="mr-3" size={18} />,
-    'Utilisateurs': <FiUsers className="mr-3" size={18} />,
-    'Clients': <FiUser className="mr-3" size={18} />,
-    'Catégories': <FiTag className="mr-3" size={18} />,
-    'Produits': <FiBox className="mr-3" size={18} />,
-    'Facturation': <FiFileText className="mr-3" size={18} />,
-    'Devis (Proforma)': <FiFileText className="mr-3" size={18} />,
-    'Paramètres': <FiSettings className="mr-3" size={18} />,
-    'Dépenses': <FiDollarSign className="mr-3" size={18} />,
-    'Fournisseurs': <FiTruck className="mr-3" size={18} />,
-    'Suivi facture client': <FiFileText className="mr-3" size={18} />
-  };
-
   useEffect(() => {
-    if (!user) {
-      navigate('/login');
-      return;
-    }
-    if (user && user.image) {
-      setImage(user.image);
-    }
-
-    let newMenu = [
-      { name: 'Tableau de bord', path: '/dashboard' },
-      { name: 'Facturation', path: '/dashboard/factures2' },
-      { name: 'Devis (Proforma)', path: '/dashboard/proformas' },
-      { name: 'Clients', path: '/dashboard/clients' },
-      { name: 'Fournisseurs', path: '/dashboard/fournisseurs' },
-      { name: 'Catégories', path: '/dashboard/categories' },
-      { name: 'Produits', path: '/dashboard/produits' },
-      { name: 'Suivi facture client', path: '/dashboard/clients-factures' },
-      { name: 'Dépenses', path: '/dashboard/depenses' }
-    ];
-
-    if (user.role === 'SuperAdmin') {
-      newMenu.push({ name: 'Utilisateurs', path: '/dashboard/users' });
-    }
-
-    newMenu.push({ name: 'Paramètres', path: '/dashboard/settings' });
-
-    setMenu(newMenu);
+    if (!user) { navigate('/login'); return; }
+    if (user.image) setImage(user.image);
   }, [user, navigate]);
 
   useEffect(() => {
     if (user) {
-      const allowedRoutes = validRoutes[user.role];
-      const isRouteValid = allowedRoutes.includes(location.pathname);
-
-      if (isRouteValid) {
-        localStorage.setItem('lastVisitedPath', location.pathname);
-      } else {
-        navigate('/dashboard');
-      }
+      const allowed = validRoutes[user.role];
+      if (!allowed.includes(location.pathname)) navigate('/dashboard');
+      else localStorage.setItem('lastVisitedPath', location.pathname);
     }
   }, [location.pathname, user, navigate]);
 
+  // Build groups, conditionally injecting admin items
+  const groups = NAV_GROUPS.map(g => {
+    if (g.label === 'Admin' && user?.role === 'SuperAdmin') {
+      return {
+        ...g,
+        items: [
+          { name: 'Utilisateurs', path: '/dashboard/users', icon: FiUsers, color: 'from-indigo-500 to-violet-500' },
+          ...g.items
+        ]
+      };
+    }
+    return g;
+  });
+
   return (
     <div className="flex h-screen bg-gray-50">
-      {/* Mobile menu button */}
+      {/* Mobile menu toggle */}
       <button
         onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-        className="fixed top-4 left-4 z-50 p-2 bg-blue-600 text-white rounded-md lg:hidden focus:outline-none transition-all duration-200 hover:bg-blue-700 shadow-md"
+        className="fixed top-4 left-4 z-50 p-2 bg-gradient-to-br from-violet-600 to-indigo-600 text-white rounded-xl lg:hidden shadow-lg"
       >
-        {isSidebarOpen ? <FiX size={24} /> : <FiMenu size={24} />}
+        {isSidebarOpen ? <FiX size={20} /> : <FiMenu size={20} />}
       </button>
 
       {/* Sidebar */}
-      <div
-        className={`fixed lg:relative w-72 lg:w-64 bg-white text-gray-800 flex flex-col transform transition-all duration-300 ease-in-out border-r border-gray-200 ${isSidebarOpen ? 'translate-x-0 shadow-xl' : '-translate-x-full lg:translate-x-0'
-          } h-screen z-40 overflow-hidden`}
-      >
-        {/* Profil utilisateur - Section fixe en haut */}
-        <div className="p-6 pb-2">
-          <div className="flex items-center p-1.5 bg-blue-50 rounded-lg">
-            {image ? (
-              <img
-                src={`${API_URL}/uploads/${image}`}
-                alt="User"
-                className="w-12 h-12 rounded-full object-cover mr-3 border-2 border-blue-200"
-              />
-            ) : (
-              <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center mr-3 border-2 border-blue-200">
-                <FiUser className="text-blue-500" size={22} />
-              </div>
-            )}
-            <div className="overflow-hidden">
-              <h2 className="font-semibold text-base text-gray-800 truncate">
-                {user?.nom} {user?.prenom}
-              </h2>
-              <p className="text-sm text-gray-500 capitalize">{user?.role}</p>
+      <div className={`fixed lg:relative w-72 lg:w-64 bg-slate-900 text-white flex flex-col transform transition-all duration-300 ease-in-out ${
+        isSidebarOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full lg:translate-x-0'
+      } h-screen z-40 overflow-hidden`}>
+
+        {/* Brand / Logo area */}
+        <div className="px-5 pt-6 pb-4 border-b border-white/10">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-gradient-to-br from-violet-500 to-indigo-500 rounded-xl flex items-center justify-center shadow-lg">
+              <FiBox size={20} className="text-white" />
+            </div>
+            <div>
+              <p className="font-bold text-white text-sm">GE Manager</p>
+              <p className="text-white/40 text-xs">Gestion d'entreprise</p>
             </div>
           </div>
         </div>
 
-        {/* Menu de navigation - Section défilante au milieu */}
-        <div className="flex-1 overflow-y-auto px-6 py-2 custom-scrollbar">
-          <nav>
-            <ul className="space-y-1.5">
-              {menu.map((item) => (
-                <li key={item.path}>
-                  <Link
-                    to={item.path}
-                    onClick={() => {
-                      closeSidebar();
-                      window.scrollTo({ top: 0, behavior: 'smooth' });
-                    }}
-                    className={`flex items-center p-2 text-sm rounded-lg transition-all duration-200 ${location.pathname === item.path
-                      ? 'bg-blue-100 text-blue-600 font-medium'
-                      : 'hover:bg-gray-100 text-gray-600'
-                      }`}
-                  >
-                    {menuIcons[item.name]}
-                    <span className="truncate">{item.name}</span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </nav>
+        {/* User profile */}
+        <div className="px-5 py-4 border-b border-white/10">
+          <div className="flex items-center gap-3">
+            {image ? (
+              <img src={`${API_URL}/uploads/${image}`} alt="User"
+                className="w-9 h-9 rounded-xl object-cover border-2 border-white/20" />
+            ) : (
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-500/30 to-indigo-500/30 flex items-center justify-center border border-white/10">
+                <FiUser className="text-white/70" size={16} />
+              </div>
+            )}
+            <div className="overflow-hidden">
+              <p className="font-semibold text-sm text-white truncate">{user?.nom} {user?.prenom}</p>
+              <p className="text-xs text-white/40 capitalize">{user?.role}</p>
+            </div>
+          </div>
         </div>
 
-        {/* Déconnexion - Section fixe en bas */}
-        <div className="p-6 pt-4 border-t border-gray-100">
+        {/* Navigation */}
+        <div className="flex-1 overflow-y-auto py-3 px-3 scrollbar-thin">
+          {groups.map(group => (
+            <div key={group.label} className="mb-4">
+              <p className="text-[10px] font-bold text-white/30 uppercase tracking-widest px-3 mb-1.5">{group.label}</p>
+              <ul className="space-y-0.5">
+                {group.items.map(item => {
+                  const Icon = item.icon;
+                  const isActive = location.pathname === item.path;
+                  return (
+                    <li key={item.path}>
+                      <Link
+                        to={item.path}
+                        onClick={() => { closeSidebar(); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                        className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all duration-200 group ${
+                          isActive
+                            ? 'bg-gradient-to-r ' + item.color + ' text-white shadow-lg'
+                            : 'text-white/50 hover:text-white hover:bg-white/8'
+                        }`}
+                      >
+                        <div className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all ${
+                          isActive
+                            ? 'bg-white/20'
+                            : 'bg-white/5 group-hover:bg-white/10'
+                        }`}>
+                          <Icon size={14} />
+                        </div>
+                        <span className="font-medium truncate">{item.name}</span>
+                        {isActive && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-white/60"></span>}
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
+        </div>
+
+        {/* Logout */}
+        <div className="px-3 py-4 border-t border-white/10">
           <LogoutButton
-            className="w-full flex items-center justify-center p-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors duration-200"
+            className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-white/50 hover:text-white hover:bg-white/8 rounded-xl transition"
             onClick={closeSidebar}
           />
         </div>
       </div>
 
-      {/* Contenu principal - espacements réduits */}
+      {/* Main Content */}
       <div className="flex-1 overflow-y-auto h-screen bg-gray-50">
         <div className="p-4 md:p-6 lg:p-8">
-          {/* Alerte stock bas - marge réduite */}
           <div className="mb-4">
             <LowStockAlert />
           </div>
-
-          {/* Page content - Removed the forced white card for more layout flexibility */}
           <div className="w-full">
             <Outlet />
           </div>

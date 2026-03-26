@@ -1,4 +1,5 @@
 const db = require('../db');
+const { logAction } = require('../utils/logger');
 
 // Get all suppliers
 exports.getAllFournisseurs = (req, res) => {
@@ -42,6 +43,7 @@ exports.createFournisseur = (req, res) => {
             console.error('Error creating supplier:', err);
             return res.status(500).json({ message: 'Error creating supplier' });
         }
+        logAction(req.user?.id, 'add', 'fournisseur', result.insertId, null, req.body, `Création du fournisseur: ${nom}`);
         res.status(201).json({
             success: true,
             message: 'Supplier created successfully',
@@ -68,6 +70,7 @@ exports.updateFournisseur = (req, res) => {
         if (result.affectedRows === 0) {
             return res.status(404).json({ message: 'Supplier not found' });
         }
+        logAction(req.user?.id, 'update', 'fournisseur', id, null, req.body, `Mise à jour du fournisseur: ${nom}`);
         res.status(200).json({ success: true, message: 'Supplier updated successfully' });
     });
 };
@@ -101,6 +104,7 @@ exports.deleteFournisseur = (req, res) => {
             if (result.affectedRows === 0) {
                 return res.status(404).json({ message: 'Supplier not found' });
             }
+            logAction(req.user?.id, 'delete', 'fournisseur', id, null, null, `Suppression du fournisseur ID: ${id}`);
             res.status(200).json({ success: true, message: 'Supplier deleted successfully' });
         });
     });

@@ -55,7 +55,9 @@ const Users = () => {
     const fetchUsers = async () => {
         setIsLoading(true);
         try {
-            const response = await axios.get(`${API_URL}/api/users/list`);
+            const response = await axios.get(`${API_URL}/api/users/list`, {
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+            });
             setUsers(response.data);
             setFilteredUsers(response.data);
         } catch (error) {
@@ -222,15 +224,33 @@ const Users = () => {
             {message.text && <Notification message={message} onClose={() => setMessage({ text: '', type: '' })} />}
 
             <div className="max-w-7xl mx-auto">
-                <div className="flex justify-between items-center mb-6">
-                    <h1 className="text-2xl md:text-3xl font-bold text-gray-800">Gestion des Utilisateurs</h1>
-                    <button
-                        onClick={handleOpenCreateModal}
-                        className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition font-medium"
-                    >
-                        <FaUserPlus />
-                        Créer Utilisateur
-                    </button>
+                {/* Hero Header */}
+                <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 rounded-2xl p-6 mb-6 shadow-xl">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div>
+                            <h1 className="text-2xl font-bold text-white flex items-center gap-3">
+                                <FaUsers className="text-white/80" /> Gestion des Utilisateurs
+                            </h1>
+                            <p className="text-white/70 text-sm mt-1">Gérez les accès, les rôles et la sécurité de l'application</p>
+                        </div>
+                        <button
+                            onClick={handleOpenCreateModal}
+                            className="bg-white/20 backdrop-blur-md hover:bg-white/30 text-white px-5 py-2.5 rounded-xl shadow-lg transition-all duration-200 flex items-center gap-2 text-sm font-bold border border-white/30"
+                        >
+                            <FaUserPlus /> Créer Utilisateur
+                        </button>
+                    </div>
+
+                    <div className="flex gap-4 mt-6">
+                        <div className="bg-white/10 backdrop-blur-sm rounded-xl px-4 py-2 border border-white/10 text-center">
+                            <p className="text-xl font-bold text-white leading-none">{users.length}</p>
+                            <p className="text-white/60 text-[10px] uppercase font-bold tracking-wider mt-1">Utilisateurs</p>
+                        </div>
+                        <div className="bg-white/10 backdrop-blur-sm rounded-xl px-4 py-2 border border-white/10 text-center">
+                            <p className="text-xl font-bold text-white leading-none">{pendingUsers.length}</p>
+                            <p className="text-white/60 text-[10px] uppercase font-bold tracking-wider mt-1">En attente</p>
+                        </div>
+                    </div>
                 </div>
 
                 {/* Modal de création */}

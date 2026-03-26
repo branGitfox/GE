@@ -6,6 +6,8 @@ import ClientList from '../components/clients/ClientList';
 import ClientDetails from '../components/clients/ClientDetails';
 import ConfirmModal from '../components/ConfirmModal';
 import { FaArrowLeft } from 'react-icons/fa';
+import { FiUsers, FiUserPlus, FiSearch } from 'react-icons/fi';
+
 const Clients = () => {
     const [clients, setClients] = useState([]);
     const [filteredClients, setFilteredClients] = useState([]);
@@ -186,23 +188,40 @@ const Clients = () => {
     };
 
     return (
-        <div ref={topRef} className="p-4 md:p-8 bg-gray-50 min-h-screen">
-            <h1 className="text-2xl md:text-3xl font-bold mb-6 text-gray-800 text-center">
-                {viewMode ? (
-                    <div className="flex items-center justify-center">
-                        <button
-                            onClick={handleBackToList}
-                            className="mr-4 text-blue-600 hover:text-blue-800"
-                            disabled={isLoading}
-                        >
-                            <FaArrowLeft />
-                        </button>
-                        Détails du Client
-                    </div>
-                ) : (
-                    'Gestion des Clients'
-                )}
-            </h1>
+    <div ref={topRef} className="max-w-7xl mx-auto">
+      {/* Hero Header */}
+      <div className="bg-gradient-to-r from-violet-500 via-purple-500 to-fuchsia-500 rounded-2xl p-6 mb-6 shadow-xl">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            {viewMode && (
+              <button
+                onClick={handleBackToList}
+                className="w-10 h-10 bg-white/20 backdrop-blur-md rounded-xl flex items-center justify-center text-white hover:bg-white/30 transition-all border border-white/30 shadow-lg"
+                disabled={isLoading}
+              >
+                <FaArrowLeft />
+              </button>
+            )}
+            <div>
+              <h1 className="text-2xl font-bold text-white flex items-center gap-3">
+                <FiUsers className="text-white/80" /> {viewMode ? (selectedClient?.nom || 'Détails du Client') : 'Gestion des Clients'}
+              </h1>
+              <p className="text-white/70 text-sm mt-1">
+                {viewMode ? 'Consultez les factures et informations détaillées' : 'Gérez votre base de données clients et suivez leurs activités'}
+              </p>
+            </div>
+          </div>
+          
+          {!viewMode && (
+            <div className="flex gap-3">
+              <div className="bg-white/10 backdrop-blur-sm rounded-xl px-4 py-2 border border-white/10 text-center">
+                <p className="text-xl font-bold text-white leading-none">{clients.length}</p>
+                <p className="text-white/60 text-[10px] uppercase font-bold tracking-wider mt-1">Clients</p>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
 
             <ClientForm
                 formData={formData}

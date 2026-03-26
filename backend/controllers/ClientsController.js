@@ -1,4 +1,5 @@
 const db = require('../db');
+const { logAction } = require('../utils/logger');
 
 // Récupérer tous les utilisateurs
 exports.getAllClients = (req, res) => {
@@ -92,6 +93,7 @@ exports.createClient = async (req, res) => {
             );
         });
 
+        await logAction(req.user?.id, 'add', 'client', insertResult.insertId, null, req.body, `Création du client: ${nom}`);
         res.status(201).json({
             success: true,
             message: 'Client créé avec succès',
@@ -174,6 +176,7 @@ exports.updateClient = (req, res) => {
                         return res.status(404).json({ message: 'Client non trouvé' });
                     }
 
+                    logAction(req.user?.id, 'update', 'client', id, null, req.body, `Mise à jour du client: ${nom}`);
                     res.json({
                         success: true,
                         message: 'Client mis à jour avec succès',
@@ -238,6 +241,7 @@ exports.deleteClient = (req, res) => {
                     return res.status(404).json({ message: 'Aucun client supprimé' });
                 }
 
+                logAction(req.user?.id, 'delete', 'client', id, null, null, `Suppression du client ID: ${id}`);
                 res.json({
                     success: true,
                     message: `Client ${id} supprimé avec succès`

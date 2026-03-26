@@ -1,4 +1,5 @@
 const db = require('../db');
+const { logAction } = require('../utils/logger');
 
 // Retourner le stock réel (somme des quantités) pour chaque produit_id
 exports.getStockParProduit = (req, res) => {
@@ -19,11 +20,12 @@ exports.getStockParProduit = (req, res) => {
 // Mettre à jour un produit_achat
 exports.updateProduitAchat = (req, res) => {
     const { id } = req.params;
-    const { nom, description, quantite, prix_achat, prix_achat_piece, prix_vente, unite, category_id, produit_id, fournisseur_id } = req.body;
-    const updateQuery = `UPDATE produit_achat SET nom = ?, description = ?, quantite = ?, prix_achat = ?, prix_achat_piece = ?, prix_vente = ?, unite = ?, category_id = ?, produit_id = ?, fournisseur_id = ? WHERE id = ?`;
+    const { nom, description, quantite, prix_achat, prix_achat_piece, prix_vente, unite, category_id, produit_id, fournisseur_id, entrepot_id } = req.body;
+    const updateQuery = `UPDATE produit_achat SET nom = ?, description = ?, quantite = ?, prix_achat = ?, prix_achat_piece = ?, prix_vente = ?, unite = ?, category_id = ?, produit_id = ?, fournisseur_id = ?, entrepot_id = ? WHERE id = ?`;
     const safeProductId = (produit_id !== undefined && produit_id !== null && produit_id !== '') ? produit_id : null;
     const safeFournisseurId = (fournisseur_id !== undefined && fournisseur_id !== null && fournisseur_id !== '') ? fournisseur_id : null;
-    db.query(updateQuery, [nom, description, quantite, prix_achat, prix_achat_piece || 0, prix_vente, unite || null, category_id || null, safeProductId, safeFournisseurId, id], (err, result) => {
+    const safeEntrepotId = (entrepot_id !== undefined && entrepot_id !== null && entrepot_id !== '') ? entrepot_id : null;
+    db.query(updateQuery, [nom, description, quantite, prix_achat, prix_achat_piece || 0, prix_vente, unite || null, category_id || null, safeProductId, safeFournisseurId, safeEntrepotId, id], (err, result) => {
         if (err) {
             console.error('Erreur update produit achat:', err);
             return res.status(500).json({ message: 'Erreur lors de la modification', error: err.message });
@@ -31,6 +33,7 @@ exports.updateProduitAchat = (req, res) => {
         if (result.affectedRows === 0) {
             return res.status(404).json({ message: 'Enregistrement non trouvé' });
         }
+        logAction(req.user?.id, 'update', 'produit_achat', id, null, req.body, `Modification de l'historique d'achat/ajustement: ${nom}`);
         res.status(200).json({ id, nom, description, quantite, prix_achat, prix_vente, unite, category_id, produit_id, fournisseur_id: safeFournisseurId });
     });
 };
@@ -119,15 +122,16 @@ exports.getAllProduitAchats = async (req, res) => {
 
 // Créer un enregistrement dans produit_achat
 exports.createProduitAchat = (req, res) => {
-    const { nom, description, quantite, prix_achat, prix_achat_piece, prix_vente, unite, category_id, produit_id, fournisseur_id } = req.body;
+    const { nom, description, quantite, prix_achat, prix_achat_piece, prix_vente, unite, category_id, produit_id, fournisseur_id, entrepot_id } = req.body;
     const insertQuery = `
-        INSERT INTO produit_achat (nom, description, quantite, prix_achat, prix_achat_piece, prix_vente, unite, category_id, produit_id, fournisseur_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO produit_achat (nom, description, quantite, prix_achat, prix_achat_piece, prix_vente, unite, category_id, produit_id, fournisseur_id, entrepot_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
     const safeProductId = (produit_id !== undefined && produit_id !== null && produit_id !== '') ? produit_id : null;
     const safeFournisseurId = (fournisseur_id !== undefined && fournisseur_id !== null && fournisseur_id !== '') ? fournisseur_id : null;
+    const safeEntrepotId = (entrepot_id !== undefined && entrepot_id !== null && entrepot_id !== '') ? entrepot_id : null;
 
-    db.query(insertQuery, [nom, description, quantite, prix_achat, prix_achat_piece || 0, prix_vente, unite || null, category_id || null, safeProductId, safeFournisseurId], (err, result) => {
+    db.query(insertQuery, [nom, description, quantite, prix_achat, prix_achat_piece || 0, prix_vente, unite || null, category_id || null, safeProductId, safeFournisseurId, safeEntrepotId], (err, result) => {
         if (err) {
             console.error('Erreur insertion produit achat:', err);
             return res.status(500).json({ message: 'Erreur lors de la création', error: err.message });
@@ -152,6 +156,7 @@ exports.createProduitAchat = (req, res) => {
             });
         }
 
+        logAction(req.user?.id, 'add', 'produit_achat', result.insertId, null, req.body, `Nouvel achat/ajustement de stock pour: ${nom}`);
         res.status(201).json({ id: result.insertId, nom, description, quantite, prix_achat, prix_vente, unite, category_id, produit_id, fournisseur_id: safeFournisseurId });
     });
 };
@@ -166,6 +171,7 @@ exports.deleteProduitAchat = (req, res) => {
         if (result.affectedRows === 0) {
             return res.status(404).json({ message: 'Enregistrement non trouvé' });
         }
+        logAction(req.user?.id, 'delete', 'produit_achat', id, null, null, `Suppression d'un enregistrement d'achat/ajustement ID: ${id}`);
         res.json({ message: 'Produit achat supprimé avec succès' });
     });
 };
@@ -175,6 +181,7 @@ exports.getProduitAchatStats = (req, res) => {
     const { startDate, endDate } = req.query;
     let query = `
         SELECT 
+            pa.id,
             pa.nom, 
             SUM(pa.quantite) AS total_quantite, 
             pa.prix_achat,
@@ -182,10 +189,20 @@ exports.getProduitAchatStats = (req, res) => {
             pa.unite,
             pa.fournisseur_id,
             f.nom AS fournisseur_nom,
+            pa.entrepot_id,
+            e.nom AS entrepot_nom,
             pa.description,
-            pa.created_at
+            pa.created_at,
+            pa.produit_id,
+            (
+                SELECT GROUP_CONCAT(f2.nom SEPARATOR ', ')
+                FROM produit_fournisseurs pf
+                JOIN fournisseurs f2 ON f2.id = pf.fournisseur_id
+                WHERE pf.produit_id = pa.produit_id
+            ) AS fournisseurs_list
         FROM produit_achat pa
         LEFT JOIN fournisseurs f ON pa.fournisseur_id = f.id
+        LEFT JOIN entrepots e ON pa.entrepot_id = e.id
     `;
     const params = [];
 
@@ -195,7 +212,7 @@ exports.getProduitAchatStats = (req, res) => {
     }
 
     query += `
-        GROUP BY pa.id, pa.nom, pa.prix_achat, pa.unite, pa.fournisseur_id, f.nom, pa.description, pa.created_at
+        GROUP BY pa.id, pa.nom, pa.prix_achat, pa.unite, pa.fournisseur_id, f.nom, pa.entrepot_id, e.nom, pa.description, pa.created_at, pa.produit_id
         ORDER BY pa.created_at DESC
     `;
 

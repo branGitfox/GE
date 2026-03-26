@@ -113,6 +113,26 @@ const DashboardHome = () => {
         }
     };
 
+    const handleExportExcel = async () => {
+        try {
+            const response = await axios.get(`${API_URL}/api/export/excel`, {
+                responseType: 'blob',
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+            });
+            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            const fileName = `Rapport_Complet_GE_${new Date().toISOString().split('T')[0]}.xlsx`;
+            link.setAttribute('download', fileName);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+        } catch (err) {
+            console.error("Erreur export:", err);
+            alert("Erreur lors de l'exportation Excel");
+        }
+    };
+
     useEffect(() => {
         fetchDashboardData();
     }, [selectedYear, startDate, endDate]);
@@ -121,19 +141,37 @@ const DashboardHome = () => {
         return new Intl.NumberFormat('fr-FR').format(amount || 0) + " Fmg";
     };
 
-    const COLORS = ['#4F46E5', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];
+    const COLORS = [
+        '#6366f1', // Indigo
+        '#22c55e', // green
+        '#f59e0b', // amber
+        '#f43f5e', // rose
+        '#8b5cf6', // violet
+        '#0ea5e9', // sky
+        '#ec4899'  // pink
+    ];
     const years = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i);
 
     const CustomTooltip = ({ active, payload, label }) => {
         if (active && payload && payload.length) {
             return (
-                <div className="bg-[#1e222d] p-3 border border-gray-700 shadow-2xl rounded-lg text-gray-200">
-                    <p className="text-sm font-bold text-gray-400 mb-2 border-b border-gray-700 pb-1">{label}</p>
-                    {payload.map((entry, index) => (
-                        <p key={index} className="text-xs font-bold my-1" style={{ color: entry.color }}>
-                            {entry.name}: {parseFloat(entry.value).toLocaleString('fr-FR')} Fmg
-                        </p>
-                    ))}
+                <div className="bg-[#1e222d]/95 backdrop-blur-md p-4 border border-gray-700/50 shadow-2xl rounded-2xl text-gray-200">
+                    <p className="text-xs font-bold text-gray-400 mb-3 border-b border-gray-700/50 pb-2 flex items-center gap-2">
+                        <FiCalendar className="text-indigo-400" /> {label}
+                    </p>
+                    <div className="space-y-2">
+                        {payload.map((entry, index) => (
+                            <div key={index} className="flex items-center justify-between gap-4">
+                                <div className="flex items-center gap-2">
+                                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }}></div>
+                                    <span className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">{entry.name}</span>
+                                </div>
+                                <span className="text-xs font-black" style={{ color: entry.color }}>
+                                    {parseFloat(entry.value).toLocaleString('fr-FR')} Fmg
+                                </span>
+                            </div>
+                        ))}
+                    </div>
                 </div>
             );
         }
@@ -281,13 +319,16 @@ const DashboardHome = () => {
                         </select>
                     </div>
 
-                    {/* <button
-                        onClick={fetchDashboardData}
-                        className="p-2 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 transition-all active:scale-95 shadow-sm"
-                        title="Actualiser"
+                    <div className="h-6 w-px bg-gray-200 hidden sm:block"></div>
+
+                    <button
+                        onClick={handleExportExcel}
+                        className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-lg shadow-emerald-200 transition-all active:scale-95 font-black text-[10px] uppercase tracking-widest"
+                        title="Exporter vers Excel"
                     >
-                        <FiRefreshCw className={loading ? "animate-spin" : ""} />
-                    </button> */}
+                        <FiFileText className="text-sm" />
+                        Exporter Excel
+                    </button>
                 </div>
             </div>
 
@@ -417,21 +458,27 @@ const DashboardHome = () => {
                                     <stop offset="5%" stopColor="#2ebd85" stopOpacity={0.4}/>
                                     <stop offset="95%" stopColor="#2ebd85" stopOpacity={0}/>
                                 </linearGradient>
+                                <linearGradient id="colorPaid" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor="#00b4d8" stopOpacity={0.3}/>
+                                    <stop offset="95%" stopColor="#00b4d8" stopOpacity={0}/>
+                                </linearGradient>
                             </defs>
-                            <CartesianGrid strokeDasharray="2 4" vertical={true} stroke="#2B3139" />
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#2B3139" />
                             <XAxis dataKey="name" axisLine={{ stroke: '#2B3139' }} tickLine={false} tick={{ fontSize: 11, fill: '#848E9C', fontWeight: 600 }} dy={10} />
                             <YAxis axisLine={{ stroke: '#2B3139' }} tickLine={false} tick={{ fontSize: 11, fill: '#848E9C', fontWeight: 600 }} tickFormatter={(value) => `${(value / 1000).toLocaleString()}k`} dx={-10} />
-                            <Tooltip content={<CustomTooltip />} cursor={{ fill: '#2B3139', opacity: 0.4 }} />
+                            <Tooltip content={<CustomTooltip />} cursor={{ stroke: '#848E9C', strokeWidth: 1, strokeDasharray: '3 3' }} />
                             
                             {/* Dépenses in background like Volume bars in trading */}
-                            <Bar dataKey="expenses" name="Dépenses" fill="#e0294a" opacity={0.5} barSize={20} radius={[2, 2, 0, 0]} />
+                            <Bar dataKey="expenses" name="Dépenses" fill="#e0294a" opacity={0.4} barSize={24} radius={[4, 4, 0, 0]} />
                             
                             {/* Revenue as an area (like price graph) */}
-                            <Area type="monotone" dataKey="revenue" name="Rev. Brut" stroke="#2ebd85" strokeWidth={2} fillOpacity={1} fill="url(#colorRevenueTrading)" activeDot={{ r: 6, fill: '#2ebd85', stroke: '#131722', strokeWidth: 2 }} />
+                            <Area type="monotone" dataKey="revenue" name="Rev. Brut" stroke="#2ebd85" strokeWidth={3} fillOpacity={1} fill="url(#colorRevenueTrading)" activeDot={{ r: 6, fill: '#2ebd85', stroke: '#131722', strokeWidth: 2 }} />
                             
-                            {/* Paid and Profit as lines */}
-                            <Line type="stepAfter" dataKey="paid" name="Montant Payé" stroke="#00b4d8" strokeWidth={2} dot={false} activeDot={{ r: 5, fill: '#00b4d8', stroke: '#131722', strokeWidth: 2 }} />
-                            <Line type="monotone" dataKey="profit" name="Bénéfice" stroke="#f7a600" strokeWidth={2} dot={false} activeDot={{ r: 5, fill: '#f7a600', stroke: '#131722', strokeWidth: 2 }} />
+                            {/* Paid as an area too but subtle */}
+                            <Area type="monotone" dataKey="paid" name="Montant Payé" stroke="#00b4d8" strokeWidth={2} fillOpacity={1} fill="url(#colorPaid)" dot={false} activeDot={{ r: 5, fill: '#00b4d8', stroke: '#131722', strokeWidth: 2 }} />
+                            
+                            {/* Profit as a distinctive line */}
+                            <Line type="monotone" dataKey="profit" name="Bénéfice" stroke="#f7a600" strokeWidth={3} dot={{ r: 3, fill: '#f7a600', strokeWidth: 0 }} activeDot={{ r: 6, fill: '#f7a600', stroke: '#131722', strokeWidth: 2 }} shadow="0 4px 6px rgba(0,0,0,0.3)" />
                         </ComposedChart>
                     </ResponsiveContainer>
                 </div>
@@ -453,30 +500,34 @@ const DashboardHome = () => {
                                     cy="50%"
                                     labelLine={false}
                                     outerRadius={100}
-                                    innerRadius={65}
-                                    fill="#8884d8"
+                                    innerRadius={70}
+                                    stroke="none"
                                     dataKey="quantite"
                                     nameKey="nom"
-                                    paddingAngle={5}
+                                    paddingAngle={8}
                                 >
                                     {soldProducts.slice(0, 5).map((entry, index) => (
-                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                        <Cell 
+                                            key={`cell-${index}`} 
+                                            fill={COLORS[index % COLORS.length]}
+                                            style={{ filter: `drop-shadow(0px 4px 10px ${COLORS[index % COLORS.length]}44)` }} 
+                                        />
                                     ))}
                                 </Pie>
                                 <Tooltip content={({ active, payload }) => {
                                     if (active && payload && payload.length) {
                                         return (
-                                            <div className="bg-white p-3 border border-gray-100 shadow-xl rounded-xl">
-                                                <p className="text-xs font-bold text-gray-800 mb-1">{payload[0].name}</p>
-                                                <p className="text-xs text-indigo-600 font-extrabold">
-                                                    Quantité: {payload[0].value} {payload[0].payload.unité}
+                                            <div className="bg-white/90 backdrop-blur-md p-3 border border-gray-100 shadow-2xl rounded-2xl">
+                                                <p className="text-[10px] uppercase font-black text-gray-400 mb-1">{payload[0].name}</p>
+                                                <p className="text-sm text-indigo-600 font-black">
+                                                    {payload[0].value.toLocaleString()} {payload[0].payload.unité}
                                                 </p>
                                             </div>
                                         );
                                     }
                                     return null;
                                 }} />
-                                <Legend verticalAlign="bottom" height={40} iconType="circle" wrapperStyle={{ fontSize: '10px', paddingTop: '20px' }} />
+                                <Legend verticalAlign="bottom" height={40} iconType="circle" wrapperStyle={{ fontSize: '10px', fontWeight: 700, paddingTop: '30px', color: '#64748b' }} />
                             </PieChart>
                         </ResponsiveContainer>
                     </div>
@@ -491,26 +542,27 @@ const DashboardHome = () => {
                         <FiTag className="text-orange-600 mr-2" />
                         Top Fournisseurs (par volume de vente)
                     </h3>
-                    <div className="overflow-x-auto">
+                    <div className="overflow-x-auto scrollbar-hide">
                         {topSuppliers.length > 0 ? (
                             <table className="w-full text-xs">
-                                <thead className="bg-gray-50 border-b border-gray-100">
+                                <thead className="border-b border-gray-800/10">
                                     <tr>
-                                        <th className="text-left py-4 px-3 text-gray-500 font-bold uppercase tracking-widest">Fournisseur</th>
-                                        <th className="text-left py-4 px-3 text-gray-500 font-bold uppercase tracking-widest">Meilleur Produit</th>
-                                        <th className="text-right py-4 px-3 text-gray-500 font-bold uppercase tracking-widest">Articles</th>
-                                        <th className="text-right py-4 px-3 text-gray-500 font-bold uppercase tracking-widest">CA Généré (Fmg)</th>
+                                        <th className="text-left py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">Fournisseur</th>
+                                        <th className="text-right py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">Articles</th>
+                                        <th className="text-right py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">CA (Fmg)</th>
                                     </tr>
                                 </thead>
-                                <tbody>
+                                <tbody className="divide-y divide-gray-800/5">
                                     {topSuppliers.map((sup, index) => (
-                                        <tr key={index} className="border-b border-gray-50 hover:bg-orange-50/30 transition-colors">
-                                            <td className="py-4 px-3 text-gray-900 font-bold">{sup.fournisseur_nom}</td>
-                                            <td className="py-4 px-3 text-gray-600 italic">{sup.best_product_name}</td>
-                                            <td className="py-4 px-3 text-right">
-                                                <span className="bg-orange-100 text-orange-700 py-1 px-2 rounded-lg font-black">{sup.total_items}</span>
+                                        <tr key={index} className="group hover:bg-orange-50/30 transition-colors">
+                                            <td className="py-4">
+                                                <p className="text-xs font-bold text-gray-800 group-hover:text-orange-600 transition-colors">{sup.fournisseur_nom}</p>
+                                                <p className="text-[10px] text-gray-400 italic">{sup.best_product_name}</p>
                                             </td>
-                                            <td className="py-4 px-3 text-right font-black text-orange-600">{sup.revenue.toLocaleString()}</td>
+                                            <td className="py-4 text-right">
+                                                <span className="bg-orange-100 text-orange-700 py-1 px-2 rounded-lg font-black text-[10px]">{sup.total_items}</span>
+                                            </td>
+                                            <td className="py-4 text-right font-black text-xs text-orange-600">{(sup.revenue || 0).toLocaleString()}</td>
                                         </tr>
                                     ))}
                                 </tbody>

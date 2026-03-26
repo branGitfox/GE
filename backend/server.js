@@ -58,27 +58,34 @@ io.on('connection', (socket) => {
 
 // Routes utilisateur
 const userRoutes = require('./routes/userRoutes');
+const authenticateToken = require('./middleware/authenticateToken');
 app.use('/api/users', userRoutes);
 const userRoutesLogin = require('./routes/userRoutesLogin');
 app.use('/api/users', userRoutesLogin);
 const userRoutesCRUD = require('./routes/userRoutesCRUD');
-app.use('/api/users', userRoutesCRUD);
+app.use('/api/users', authenticateToken, userRoutesCRUD);
 const clientRoutes = require('./routes/ClientRoute');
-app.use('/api/clients', clientRoutes);
+app.use('/api/clients', authenticateToken, clientRoutes);
 const factureRoutes = require('./routes/factureRoutes');
-app.use('/api/factures', factureRoutes);
+app.use('/api/factures', authenticateToken, factureRoutes);
 const produitRoutes = require('./routes/ProduitRoutes');
-app.use('/api', produitRoutes);
+app.use('/api', authenticateToken, produitRoutes);
 const backupRoutes = require('./routes/backupRoutes');
 app.use('/api/backup', backupRoutes);
 const categorieRoutes = require('./routes/categorieRoutes');
-app.use('/api/categories', categorieRoutes);
+app.use('/api/categories', authenticateToken, categorieRoutes);
 const depenseRoutes = require('./routes/depenseRoutes');
-app.use('/api/depenses', depenseRoutes);
+app.use('/api/depenses', authenticateToken, depenseRoutes);
 const produitAchatRoutes = require('./routes/produitAchatRoutes');
-app.use('/api/produit-achat', produitAchatRoutes);
+app.use('/api/produit-achat', authenticateToken, produitAchatRoutes);
 const fournisseurRoutes = require('./routes/fournisseurRoutes');
-app.use('/api/fournisseurs', fournisseurRoutes);
+app.use('/api/fournisseurs', authenticateToken, fournisseurRoutes);
+const entrepotRoutes = require('./routes/entrepotRoutes');
+app.use('/api/entrepots', authenticateToken, entrepotRoutes);
+const exportRoutes = require('./routes/exportRoutes');
+app.use('/api/export', exportRoutes);
+const logRoutes = require('./routes/logRoutes');
+app.use('/api/logs', authenticateToken, logRoutes);
 
 // Gestion des erreurs 404
 app.use((req, res, next) => {

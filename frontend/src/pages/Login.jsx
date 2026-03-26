@@ -83,10 +83,13 @@ const Login = () => {
 
     try {
       const response = await axios.post(`${API_URL}/api/users/login`, { email, mdp });
-      const { role, email: userEmail, id, nom, prenom, image } = response.data.user;
+      const { token, user: backendUser } = response.data;
+      const { role, email: userEmail, id, nom, prenom, image } = backendUser;
       const userData = { email: userEmail, role, id, nom, prenom, image };
 
-      login(userData);
+      console.log('🔑 Login successful, saving token:', token);
+      localStorage.setItem('token', token);
+      login(userData, token);
       localStorage.setItem('user', JSON.stringify(userData));
 
       const currentUrl = window.location.pathname;

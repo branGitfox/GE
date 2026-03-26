@@ -3,7 +3,7 @@ import axios from 'axios';
 import { API_URL } from '../config';
 import {
   FaTrash, FaEdit, FaPlus, FaTimes, FaCheck,
-  FaExclamationTriangle, FaSpinner, FaChevronLeft, FaChevronRight
+  FaExclamationTriangle, FaSpinner, FaChevronLeft, FaChevronRight, FaTag
 } from 'react-icons/fa';
 import ConfirmModal from '../components/ConfirmModal';
 
@@ -142,22 +142,31 @@ const Categories = () => {
   }
 
   return (
-    <div className="p-3 md:p-4 bg-gray-50 min-h-screen font-sans max-w-7xl mx-auto">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
-        <div>
-          <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">
-            Gestion des Catégories
-          </h1>
-          <p className="text-gray-500 text-sm mt-0.5">Organisez vos produits par catégories</p>
+    <div className="max-w-7xl mx-auto">
+      {/* Hero Header */}
+      <div className="bg-gradient-to-r from-pink-500 via-rose-500 to-red-500 rounded-2xl p-6 mb-6 shadow-xl">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-white flex items-center gap-3">
+              <FaTag className="text-white/80" /> Gestion des Catégories
+            </h1>
+            <p className="text-white/70 text-sm mt-1">Organisez vos produits par familles et types</p>
+          </div>
+          <button
+            onClick={handleAdd}
+            className="bg-white/20 backdrop-blur-md hover:bg-white/30 text-white px-5 py-2.5 rounded-xl shadow-lg transition-all duration-200 flex items-center gap-2 text-sm font-bold border border-white/30"
+          >
+            <FaPlus size={14} /> Nouvelle Catégorie
+          </button>
         </div>
 
-        <button
-          onClick={handleAdd}
-          className="bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white px-4 py-2 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 flex items-center gap-2 text-sm font-medium"
-        >
-          <FaPlus size={14} /> Nouvelle Catégorie
-        </button>
+        {/* Quick Stats or Tabs if needed? For now just a simple stat */}
+        <div className="flex gap-3 mt-6">
+          <div className="bg-white/10 backdrop-blur-sm rounded-xl px-4 py-2 border border-white/10">
+            <p className="text-xl font-bold text-white leading-none">{categories.length}</p>
+            <p className="text-white/60 text-[10px] uppercase font-bold tracking-wider mt-1">Total Catégories</p>
+          </div>
+        </div>
       </div>
 
       {/* Message de notification */}

@@ -1,8 +1,9 @@
+require('dotenv').config();
 const db = require('../db');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken'); // JWT pour générer les tokens sécurisés
 
-const SECRET_KEY = '8219'; // Remplacez par une clé secrète complexe
+const SECRET_KEY = process.env.JWT_SECRET || '8219';
 
 
 // Connexion d'un utilisateur

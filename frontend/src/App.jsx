@@ -15,9 +15,11 @@ import DashboardHome from './pages/DashboardHome';
 import Settings from './pages/Settings';
 import Categories from './pages/Categories';
 import Depenses from './pages/Depenses';
+import Logs from './pages/Logs';
 
 import ClientsWithFactures from './pages/ClientsWithFactures';
 import Fournisseurs from './pages/Fournisseurs';
+import Entrepots from './pages/Entrepots';
 
 
 
@@ -44,6 +46,8 @@ function App() {
             <Route path="categories" element={<Categories />} />
             <Route path="depenses" element={<Depenses />} />
             <Route path="fournisseurs" element={<Fournisseurs />} />
+            <Route path="entrepots" element={<Entrepots />} />
+            <Route path="logs" element={<Logs />} />
 
 
           </Route>

@@ -1,6 +1,7 @@
 // Description: Contrôleur pour gérer les factures, y compris la création et la récupération de factures
 
 const db = require("../db");
+const { logAction } = require("../utils/logger");
 
 // Créer une facture avec gestion de stock
 exports.createFacture = async (req, res) => {
@@ -113,6 +114,8 @@ exports.createFacture = async (req, res) => {
 
     // 7. Valider la transaction
     await queryAsync("COMMIT", []);
+
+    await logAction(req.user?.id, 'add', 'facture', insertId, null, req.body, `Création de la ${status}: ${numero_facture}`);
     res.status(201).json({ success: true, id: insertId, numero_facture });
 
   } catch (error) {
@@ -159,6 +162,7 @@ exports.deleteFacture = async (req, res) => {
       }
 
       res.status(200).json({ message: "Facture supprimée avec succès" });
+      logAction(req.user?.id, 'delete', 'facture', id, null, null, `Suppression de la facture ID: ${id}`);
     });
   } catch (error) {
     res.status(500).json({
@@ -307,12 +311,14 @@ exports.updateFacture = async (req, res) => {
               remise || 0,
               id
             ],
-            (err, result) => {
+            async (err, result) => {
               if (err) {
                 return db.rollback(() => {
                   throw err;
                 });
               }
+
+              await logAction(req.user?.id, 'update', 'facture', id, null, req.body, `Mise à jour de la facture: ${oldFacture.numero_facture}`);
 
               db.commit((err) => {
                 if (err) {

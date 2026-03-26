@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import axios from 'axios';
 import { API_URL } from '../config';
 import { FaFileInvoiceDollar } from 'react-icons/fa';
 import FactureForm from '../components/factures/FactureForm';
@@ -69,16 +70,14 @@ const Proformas = () => {
       setLoading(prev => ({ ...prev, factures: true, clients: true, produits: true }));
 
       const [facturesRes, clientsRes, produitsRes] = await Promise.all([
-        fetch(`${API_URL}/api/factures`),
-        fetch(`${API_URL}/api/clients`),
-        fetch(`${API_URL}/api/produits`)
+        axios.get(`${API_URL}/api/factures`),
+        axios.get(`${API_URL}/api/clients`),
+        axios.get(`${API_URL}/api/produits`)
       ]);
 
-      const [facturesData, clientsData, produitsData] = await Promise.all([
-        facturesRes.json(),
-        clientsRes.json(),
-        produitsRes.json()
-      ]);
+      const facturesData = facturesRes.data;
+      const clientsData = clientsRes.data;
+      const produitsData = produitsRes.data;
 
       const sortedFactures = facturesData.sort((a, b) =>
         new Date(b.date_facture) - new Date(a.date_facture)
@@ -264,16 +263,7 @@ const Proformas = () => {
     try {
       setLoading(prev => ({ ...prev, factures: true }));
 
-      const response = await fetch(`${API_URL}/api/factures/${factureToDelete}`, {
-        method: "DELETE",
-        headers: {
-          "Authorization": `Bearer ${localStorage.getItem('token')}`
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error("Erreur lors de la suppression");
-      }
+      await axios.delete(`${API_URL}/api/factures/${factureToDelete}`);
 
       await fetchData();
       toast.success("Facture supprimée avec succès !");
@@ -347,22 +337,11 @@ const Proformas = () => {
 
     try {
       setLoading(prev => ({ ...prev, submit: true }));
-      const response = await fetch(`${API_URL}/api/factures/${factureToConvert.id}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify({
-          ...factureToConvert,
-          status: 'facture',
-          paiement: 0
-        }),
+      const response = await axios.put(`${API_URL}/api/factures/${factureToConvert.id}`, {
+        ...factureToConvert,
+        status: 'facture',
+        paiement: 0
       });
-
-      if (!response.ok) {
-        throw new Error("Erreur lors de la conversion");
-      }
 
       await fetchData();
       toast.success("Le devis a été converti en facture avec succès !");
@@ -415,13 +394,10 @@ const Proformas = () => {
 
       const method = isEditMode ? "PUT" : "POST";
 
-      const response = await fetch(url, {
+      const response = await axios({
         method,
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify({
+        url,
+        data: {
           ...nouvelleFacture,
           prix_total: Math.max(0, calculerMontantTotal(nouvelleFacture.liste_articles) - (parseFloat(nouvelleFacture.remise) || 0)),
           client_id: nouvelleFacture.isTempClient ? null : nouvelleFacture.client_id,
@@ -436,13 +412,8 @@ const Proformas = () => {
           temp_client_email: nouvelleFacture.isTempClient ? nouvelleFacture.temp_client_email : null,
           status: 'proforma',
           remise: parseFloat(nouvelleFacture.remise) || 0
-        }),
+        }
       });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || (isEditMode ? "Erreur lors de la modification" : "Erreur lors de la création"));
-      }
 
       await fetchData();
       handleAnnuler();
@@ -450,7 +421,8 @@ const Proformas = () => {
       toast.success(isEditMode ? "Facture modifiée avec succès !" : "Facture créée avec succès !");
     } catch (error) {
       console.error("Erreur:", error);
-      toast.error(error.message || "Erreur serveur");
+      const errorMessage = error.response?.data?.message || error.message || "Erreur serveur";
+      toast.error(errorMessage);
     } finally {
       setLoading(prev => ({ ...prev, submit: false }));
     }

@@ -1,7 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { API_URL } from '../../config';
-import { FaBox, FaInfoCircle, FaHashtag, FaDollarSign, FaSave, FaTimes, FaPlus, FaCheck, FaExclamationTriangle, FaTag, FaTruck } from 'react-icons/fa';
+import {
+  FaBox, FaInfoCircle, FaHashtag, FaDollarSign, FaSave, FaTimes,
+  FaPlus, FaExclamationTriangle, FaTag, FaTruck, FaWarehouse, FaCheck
+} from 'react-icons/fa';
 import { ClipLoader } from 'react-spinners';
 import SearchSelect from '../factures/SearchSelect';
 
@@ -9,8 +12,6 @@ const ProduitForm = ({
   formData,
   editingProduit,
   isLoading,
-  message,
-  success,
   handleChange,
   setFormData,
   handleSubmit,
@@ -19,11 +20,11 @@ const ProduitForm = ({
 }) => {
   const [categories, setCategories] = useState([]);
   const [fournisseurs, setFournisseurs] = useState([]);
+  const [entrepots, setEntrepots] = useState([]);
   const [unlinkedPurchases, setUnlinkedPurchases] = useState([]);
   const [showImportModal, setShowImportModal] = useState(false);
   const [hasDetail, setHasDetail] = useState(true);
 
-  // Sync hasDetail with pieces_par_carton on edit or import
   useEffect(() => {
     if (formData.pieces_par_carton > 1 || formData.stock_pieces > 0 || formData.prix_piece > 0) {
       setHasDetail(true);
@@ -32,394 +33,344 @@ const ProduitForm = ({
     }
   }, [formData.pieces_par_carton, editingProduit]);
 
-  // Fetch categories
   useEffect(() => {
-    const fetchCategories = async () => {
+    const fetchData = async () => {
       try {
-        const response = await axios.get(`${API_URL}/api/categories`);
-        setCategories(response.data);
-      } catch (error) {
-        console.error("Erreur chargement catégories:", error);
+        const config = {
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        };
+        const [catRes, fourRes, entRes, unlinkedRes] = await Promise.all([
+          axios.get(`${API_URL}/api/categories`, config),
+          axios.get(`${API_URL}/api/fournisseurs`, config),
+          axios.get(`${API_URL}/api/entrepots`, config),
+          axios.get(`${API_URL}/api/produits/unlinked-purchases`, config)
+        ]);
+        setCategories(catRes.data);
+        setFournisseurs(fourRes.data);
+        setEntrepots(entRes.data);
+        setUnlinkedPurchases(unlinkedRes.data);
+      } catch (err) {
+        console.error('Erreur chargement données formulaire:', err);
       }
     };
-    const fetchFournisseurs = async () => {
-      try {
-        const response = await axios.get(`${API_URL}/api/fournisseurs`);
-        setFournisseurs(response.data);
-      } catch (error) {
-        console.error("Erreur chargement fournisseurs:", error);
-      }
-    };
-    fetchCategories();
-    fetchFournisseurs();
-    fetchUnlinkedPurchases();
+    fetchData();
   }, [editingProduit]);
 
-  const fetchUnlinkedPurchases = async () => {
-    try {
-      const res = await axios.get(`${API_URL}/api/produits/unlinked-purchases`);
-      setUnlinkedPurchases(res.data);
-    } catch (err) {
-      console.error("Erreur chargement achats non liés:", err);
-    }
-  };
-
   const handleImportPurchase = (purchase) => {
-    // Correctly update all fields at once
     setFormData(prev => ({
       ...prev,
       nom: purchase.nom,
       prix_achat: purchase.prix_achat,
       prix_achat_piece: purchase.prix_achat_piece || 0,
       nom_unite_gros: purchase.unite || 'Carton',
-      unité: 'Pièce', // Default détail name
+      unité: 'Pièce',
       stock_cartons: purchase.quantite,
       stock_pieces: 0,
       pieces_par_carton: 1,
       category_id: purchase.category_id || prev.category_id || '',
-      fournisseur_id: purchase.fournisseur_id || prev.fournisseur_id || '',
+      fournisseur_ids: purchase.fournisseur_id ? [purchase.fournisseur_id] : prev.fournisseur_ids || [],
       importSourceId: purchase.id
     }));
-    setHasDetail(false); // Default to no detail for generic imports
+    setHasDetail(false);
     setShowImportModal(false);
   };
 
+  const toggleFournisseur = (id) => {
+    const curr = formData.fournisseur_ids || [];
+    const updated = curr.includes(id) ? curr.filter(f => f !== id) : [...curr, id];
+    handleChange({ target: { name: 'fournisseur_ids', value: updated } });
+  };
+
+  const toggleEntrepot = (id) => {
+    const curr = formData.entrepot_ids || [];
+    const updated = curr.includes(id) ? curr.filter(e => e !== id) : [...curr, id];
+    handleChange({ target: { name: 'entrepot_ids', value: updated } });
+  };
+
+  const inputCls = "w-full px-3 py-2 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition text-sm";
+  const labelCls = "block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1";
 
   return (
-    <div className="mb-8 bg-white p-6 rounded-xl shadow-sm border border-gray-100 max-w-4xl mx-auto relative">
-      <form onSubmit={handleSubmit} ref={formRef}>
-        <div className="flex justify-between items-center mb-6">
-          <div className="flex items-center gap-3">
-            <h2 className="text-xl font-semibold text-gray-700">
-              {editingProduit ? 'Modifier Produit' : 'Ajouter un Nouveau Produit'}
-            </h2>
-            {!editingProduit && unlinkedPurchases.length > 0 && (
-              <button
-                type="button"
-                onClick={() => setShowImportModal(true)}
-                className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded-md hover:bg-orange-200 transition font-medium"
-              >
-                Importer un achat
-              </button>
-            )}
+    <div
+      ref={formRef}
+      className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden"
+    >
+      {/* Header */}
+      <div className="bg-gradient-to-r from-violet-600 to-indigo-600 px-6 py-4 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 bg-white/20 rounded-xl flex items-center justify-center">
+            {editingProduit ? <FaSave className="text-white" /> : <FaPlus className="text-white" />}
           </div>
-          {editingProduit && (
+          <div>
+            <h2 className="text-white font-bold text-base">
+              {editingProduit ? 'Modifier le Produit' : 'Nouveau Produit'}
+            </h2>
+            <p className="text-white/70 text-xs">
+              {editingProduit ? 'Modifiez les informations (les prix historiques sont préservés)' : 'Remplissez les informations du produit'}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          {!editingProduit && unlinkedPurchases.length > 0 && (
             <button
               type="button"
-              onClick={handleCancel}
-              className="text-gray-500 hover:text-gray-700 transition"
+              onClick={() => setShowImportModal(true)}
+              className="text-xs bg-white/20 text-white px-3 py-1.5 rounded-lg hover:bg-white/30 transition font-medium border border-white/30"
             >
-              <FaTimes className="inline mr-1" /> Annuler
+              Importer achat
+            </button>
+          )}
+          {editingProduit && (
+            <button type="button" onClick={handleCancel} className="text-white/70 hover:text-white transition">
+              <FaTimes />
             </button>
           )}
         </div>
+      </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <form onSubmit={handleSubmit} className="p-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+          {/* COL 1 – Infos de base */}
           <div className="space-y-4">
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100 pb-1">Informations</p>
+
+            {/* Catégorie */}
             <div>
-              <label htmlFor="category_id" className="block text-sm font-medium text-gray-700 mb-1 flex items-center">
-                <FaTag className="mr-2 text-blue-500" /> Catégorie
-              </label>
+              <label className={labelCls}><FaTag className="inline mr-1 text-violet-400" /> Catégorie</label>
               <SearchSelect
                 value={formData.category_id || ''}
-                onChange={(value) => handleChange({ target: { name: 'category_id', value } })}
-                options={categories.map(cat => ({
-                  value: cat.id,
-                  label: cat.nom
-                }))}
-                placeholder="Sélectionner une catégorie"
+                onChange={(v) => handleChange({ target: { name: 'category_id', value: v } })}
+                options={categories.map(c => ({ value: c.id, label: c.nom }))}
+                placeholder="Catégorie..."
               />
             </div>
+
+            {/* Nom produit */}
             <div>
-              <label htmlFor="fournisseur_id" className="block text-sm font-medium text-gray-700 mb-1 flex items-center">
-                <FaTruck className="mr-2 text-blue-500" /> Fournisseur
-              </label>
-              <SearchSelect
-                value={formData.fournisseur_id || ''}
-                onChange={(value) => handleChange({ target: { name: 'fournisseur_id', value } })}
-                options={fournisseurs.map(f => ({
-                  value: f.id,
-                  label: f.nom
-                }))}
-                placeholder="Sélectionner un fournisseur"
-              />
+              <label className={labelCls}><FaBox className="inline mr-1 text-violet-400" /> Nom du Produit *</label>
+              <input type="text" name="nom" value={formData.nom} onChange={handleChange}
+                placeholder="Nom du produit" required className={inputCls} />
             </div>
+
+            {/* Description */}
             <div>
-              <label htmlFor="nom" className="block text-sm font-medium text-gray-700 mb-1 flex items-center">
-                <FaBox className="mr-2 text-blue-500" /> Nom du Produit
-              </label>
-              <input
-                type="text"
-                name="nom"
-                placeholder="Nom du produit"
-                value={formData.nom}
-                onChange={handleChange}
-                required
-                className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-              />
+              <label className={labelCls}><FaInfoCircle className="inline mr-1 text-violet-400" /> Description</label>
+              <textarea name="description" value={formData.description} onChange={handleChange}
+                placeholder="Description..." rows="3" className={inputCls} />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+
+            {/* Unités */}
+            <div className="grid grid-cols-2 gap-3">
               <div>
-                <label htmlFor="nom_unite_gros" className="block text-sm font-medium text-gray-700 mb-1 flex items-center">
-                  <FaBox className="mr-2 text-blue-500" /> Unité de Gros
-                </label>
-                <input
-                  type="text"
-                  name="nom_unite_gros"
-                  placeholder="ex: Carton, Sac, Boite"
-                  value={formData.nom_unite_gros || ''}
-                  onChange={handleChange}
-                  required
-                  className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                />
+                <label className={labelCls}>Unité Gros</label>
+                <input type="text" name="nom_unite_gros" value={formData.nom_unite_gros || ''} onChange={handleChange}
+                  placeholder="Carton, Sac…" required className={inputCls} />
               </div>
               <div>
-                <label htmlFor="unité" className="block text-sm font-medium text-gray-700 mb-1 flex items-center">
-                  <FaBox className="mr-2 text-blue-500" /> Unité de Détail
-                </label>
-                <input
-                  type="text"
-                  name="unité"
-                  placeholder="ex: Pièce, kg, Litre"
-                  value={formData.unité || ''}
-                  onChange={handleChange}
-                  disabled={!hasDetail}
-                  className={`w-full px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition ${!hasDetail ? 'bg-gray-50 text-gray-400' : ''}`}
-                />
+                <label className={labelCls}>Unité Détail</label>
+                <input type="text" name="unité" value={formData.unité || ''} onChange={handleChange}
+                  placeholder="Pièce, kg…" disabled={!hasDetail}
+                  className={`${inputCls} ${!hasDetail ? 'bg-gray-50 text-gray-400' : ''}`} />
               </div>
             </div>
 
-            <div className="flex items-center space-x-2 py-2">
-              <input
-                type="checkbox"
-                id="hasDetail"
-                checked={hasDetail}
-                onChange={(e) => {
-                  const checked = e.target.checked;
+            {/* Checkbox détail */}
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition ${hasDetail ? 'bg-violet-600 border-violet-600' : 'border-gray-300'}`}
+                onClick={() => {
+                  const checked = !hasDetail;
                   setHasDetail(checked);
                   if (!checked) {
                     handleChange({ target: { name: 'pieces_par_carton', value: 1 } });
                     handleChange({ target: { name: 'stock_pieces', value: 0 } });
                     handleChange({ target: { name: 'prix_piece', value: 0 } });
-                  } else {
-                    if (formData.pieces_par_carton <= 1) {
-                      handleChange({ target: { name: 'pieces_par_carton', value: '' } });
-                    }
+                  } else if (formData.pieces_par_carton <= 1) {
+                    handleChange({ target: { name: 'pieces_par_carton', value: '' } });
                   }
-                }}
-                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-              />
-              <label htmlFor="hasDetail" className="text-sm font-medium text-gray-700">
-                Gérer également la vente au détail ({formData.unité || 'Pièce'})
-              </label>
+                }}>
+                {hasDetail && <FaCheck className="text-white text-xs" />}
+              </div>
+              <span className="text-xs font-medium text-gray-600">Vente au détail ({formData.unité || 'Pièce'})</span>
+            </label>
+          </div>
+
+          {/* COL 2 – Stock & Prix */}
+          <div className="space-y-4">
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100 pb-1">Stock & Prix de Vente</p>
+
+            {/* Stock */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className={labelCls}><FaHashtag className="inline mr-1 text-violet-400" /> {formData.nom_unite_gros || 'Gros'}</label>
+                <input type="number" name="stock_cartons" value={formData.stock_cartons ?? ''} onChange={handleChange}
+                  min="0" step="1" required disabled={!!editingProduit}
+                  className={`${inputCls} ${editingProduit ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : ''}`} />
+              </div>
+              <div className={!hasDetail || !!editingProduit ? 'opacity-50 pointer-events-none' : ''}>
+                <label className={labelCls}>{formData.unité || 'Détail'} (suppl.)</label>
+                <input type="number" name="stock_pieces" value={formData.stock_pieces ?? ''} onChange={handleChange}
+                  min="0" step="1" disabled={!!editingProduit}
+                  className={`${inputCls} bg-gray-50 text-gray-500`} />
+              </div>
             </div>
+
+            {/* Pièces par carton */}
+            {hasDetail && (
+              <div>
+                <label className={labelCls}>{formData.unité || 'Pièce'} par {formData.nom_unite_gros || 'Carton'}</label>
+                <input type="number" name="pieces_par_carton" value={formData.pieces_par_carton || ''} onChange={handleChange}
+                  min="2" step="1" required={hasDetail} className={inputCls} />
+              </div>
+            )}
+
+            {/* Prix vente Gros */}
             <div>
-              <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1 flex items-center">
-                <FaInfoCircle className="mr-2 text-blue-500" /> Description
+              <label className={labelCls}><FaDollarSign className="inline mr-1 text-violet-400" /> Prix Vente ({formData.nom_unite_gros || 'Gros'})</label>
+              <input type="number" name="prix_carton" value={formData.prix_carton || ''} onChange={handleChange}
+                min="0" step="1" required className={inputCls} />
+            </div>
+
+            {/* Prix vente Détail */}
+            {hasDetail && (
+              <div>
+                <label className={labelCls}><FaDollarSign className="inline mr-1 text-violet-400" /> Prix Vente ({formData.unité || 'Détail'})</label>
+                <input type="number" name="prix_piece" value={formData.prix_piece || ''} onChange={handleChange}
+                  min="0" step="1" required={hasDetail} className={inputCls} />
+              </div>
+            )}
+
+            {/* Seuil alerte */}
+            <div className="bg-red-50 border border-red-100 rounded-xl p-3">
+              <label className="block text-xs font-semibold text-red-500 uppercase tracking-wider mb-1">
+                <FaExclamationTriangle className="inline mr-1" /> Seuil Alerte Stock
               </label>
-              <textarea
-                name="description"
-                placeholder="Description du produit"
-                value={formData.description}
-                onChange={handleChange}
-                rows="3"
-                className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-              />
+              <input type="number" name="stock_threshold" value={formData.stock_threshold ?? ''} onChange={handleChange}
+                min="0" step="1" placeholder="0"
+                className="w-full px-3 py-2 rounded-lg border border-red-200 bg-white focus:outline-none focus:ring-2 focus:ring-red-400 text-sm" />
+              <p className="text-xs text-red-400 mt-1">🔔 Alerte si stock ≤ seuil (en {formData.nom_unite_gros || 'Gros'})</p>
             </div>
           </div>
+
+          {/* COL 3 – Fournisseurs, Entrepôt, Prix Achat */}
           <div className="space-y-4">
-            <div className="flex gap-4">
-              <div className="w-1/2">
-                <label htmlFor="stock_cartons" className="block text-sm font-medium text-gray-700 mb-1 flex items-center">
-                  <FaBox className="mr-2 text-blue-500" /> Quantité ({formData.nom_unite_gros || 'Gros'})
-                </label>
-                 <input
-                   type="number"
-                   name="stock_cartons"
-                   placeholder={formData.nom_unite_gros || 'Gros'}
-                   value={formData.stock_cartons === undefined ? '' : formData.stock_cartons}
-                   onChange={handleChange}
-                   required
-                   min="0"
-                   step="1"
-                   disabled={!!editingProduit}
-                   className={`w-full px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition ${!!editingProduit ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : ''}`}
-                 />
-               </div>
-               <div className={`w-1/2 ${(!hasDetail || !!editingProduit) ? 'opacity-50 pointer-events-none' : ''}`}>
-                 <label htmlFor="stock_pieces" className="block text-sm font-medium text-gray-700 mb-1 flex items-center">
-                   <FaHashtag className="mr-2 text-blue-500" /> {formData.unité || 'Détail'} (suppl.)
-                 </label>
-                 <input
-                   type="number"
-                   name="stock_pieces"
-                   placeholder={formData.unité || 'Détail'}
-                   value={formData.stock_pieces === undefined ? '' : formData.stock_pieces}
-                   onChange={handleChange}
-                   min="0"
-                   step="1"
-                   disabled={!!editingProduit}
-                   className={`w-full px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition ${(!hasDetail || !!editingProduit) ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : ''}`}
-                 />
-              </div>
-            </div>
-            <div className={!hasDetail ? 'hidden' : ''}>
-              <label htmlFor="pieces_par_carton" className="block text-sm font-medium text-gray-700 mb-1 flex items-center">
-                <FaBox className="mr-2 text-blue-500" /> {formData.unité || 'Détail'} par {formData.nom_unite_gros || 'Gros'}
-              </label>
-              <input
-                type="number"
-                name="pieces_par_carton"
-                placeholder={`Nombre de ${formData.unité || 'Détail'} dans 1 ${formData.nom_unite_gros || 'Gros'}`}
-                value={formData.pieces_par_carton || ''}
-                onChange={handleChange}
-                required={hasDetail}
-                min="1"
-                step="1"
-                className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-              />
-            </div>
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100 pb-1">Fournisseurs & Logistique</p>
+
+            {/* Multi-select Fournisseurs */}
             <div>
-              <label htmlFor="prix_carton" className="block text-sm font-medium text-gray-700 mb-1 flex items-center">
-                <FaDollarSign className="mr-2 text-blue-500" /> Prix de vente ({formData.nom_unite_gros || 'Gros'})
-              </label>
-              <input
-                type="number"
-                name="prix_carton"
-                placeholder={`Prix de vente d'un ${formData.nom_unite_gros || 'Gros'}`}
-                value={formData.prix_carton || ''}
-                onChange={handleChange}
-                required
-                min="0.01"
-                step="1"
-                className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-              />
-            </div>
-            <div className={!hasDetail ? 'hidden' : ''}>
-              <label htmlFor="prix_piece" className="block text-sm font-medium text-gray-700 mb-1 flex items-center">
-                <FaDollarSign className="mr-2 text-blue-500" /> Prix de vente ({formData.unité || 'Détail'})
-              </label>
-              <input
-                type="number"
-                name="prix_piece"
-                placeholder={`Prix de vente d'un ${formData.unité || 'Détail'}`}
-                value={formData.prix_piece || ''}
-                onChange={handleChange}
-                required={hasDetail}
-                min="0.01"
-                step="1"
-                className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-              />
-            </div>
-              <div className="border border-red-200 rounded-lg p-3 bg-red-50 mt-4">
-                <label htmlFor="stock_threshold" className="block text-sm font-medium text-gray-700 mb-1 flex items-center">
-                  <FaExclamationTriangle className="mr-2 text-red-500" /> Seuil de stock ({formData.nom_unite_gros || 'Gros'})
-                </label>
-                <input
-                  type="number"
-                  name="stock_threshold"
-                  placeholder="Seuil pour notification"
-                  value={formData.stock_threshold === undefined ? '' : formData.stock_threshold}
-                  onChange={handleChange}
-                  min="0"
-                  step="1"
-                  className="w-full px-4 py-2 rounded-lg border border-red-300 focus:outline-none focus:ring-2 focus:ring-red-400 focus:border-transparent transition"
-                />
-                <p className="text-xs text-red-600 mt-2">🔔 Notification si stock inférieur ou égal à ce seuil (en {formData.nom_unite_gros || 'Gros'})</p>
+              <label className={labelCls}><FaTruck className="inline mr-1 text-violet-400" /> Fournisseurs (plusieurs possibles)</label>
+              <div className="border border-gray-200 rounded-xl p-2 max-h-36 overflow-y-auto space-y-1 bg-gray-50">
+                {fournisseurs.length === 0
+                  ? <p className="text-xs text-gray-400 text-center py-2">Aucun fournisseur</p>
+                  : fournisseurs.map(f => {
+                    const sel = (formData.fournisseur_ids || []).includes(f.id);
+                    return (
+                      <button
+                        key={f.id} type="button"
+                        onClick={() => toggleFournisseur(f.id)}
+                        className={`w-full text-left flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition ${sel ? 'bg-violet-100 text-violet-700 border border-violet-200' : 'text-gray-600 hover:bg-white border border-transparent'}`}
+                      >
+                        <span className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 ${sel ? 'bg-violet-600 border-violet-600' : 'border-gray-300'}`}>
+                          {sel && <FaCheck className="text-white text-[8px]" />}
+                        </span>
+                        {f.nom}
+                        {sel && (formData.fournisseur_ids || [])[0] === f.id && (
+                          <span className="ml-auto text-[9px] bg-violet-600 text-white px-1.5 py-0.5 rounded-full">Principal</span>
+                        )}
+                      </button>
+                    );
+                  })
+                }
               </div>
-              <div className="border border-orange-200 rounded-lg p-3 bg-orange-50 mt-4">
-              <label htmlFor="prix_achat" className="block text-sm font-medium text-gray-700 mb-1 flex items-center">
-                <FaDollarSign className="mr-2 text-orange-500" /> Prix d'Achat ({formData.nom_unite_gros || 'Gros'})
-              </label>
-              <input
-                type="number"
-                name="prix_achat"
-                placeholder={`Coût d'achat pour 1 ${formData.nom_unite_gros || 'Gros'}`}
-                value={formData.prix_achat || ''}
-                onChange={handleChange}
-                min="0"
-                step="1"
-                required
-                className="w-full px-4 py-2 rounded-lg border border-orange-300 focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition mb-3"
-              />
-              <div className={!hasDetail ? 'hidden' : ''}>
-                <label htmlFor="prix_achat_piece" className="block text-sm font-medium text-gray-700 mb-1 flex items-center">
-                  <FaDollarSign className="mr-2 text-orange-500" /> Prix d'Achat ({formData.unité || 'Détail'})
-                </label>
-                <input
-                  type="number"
-                  name="prix_achat_piece"
-                  placeholder={`Optionnel (Sinon calculé: Gros / Pièces)`}
-                  value={formData.prix_achat_piece || ''}
-                  onChange={handleChange}
-                  min="0"
-                  step="1"
-                  className="w-full px-4 py-2 rounded-lg border border-orange-300 focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition"
-                />
+              {(formData.fournisseur_ids || []).length > 0 && (
+                <p className="text-xs text-gray-400 mt-1">Le 1er sélectionné est le fournisseur principal</p>
+              )}
+            </div>
+
+            {/* Multi-select Entrepôts */}
+            <div>
+              <label className={labelCls}><FaWarehouse className="inline mr-1 text-violet-400" /> Localisation (Entrepôt / Magasin)</label>
+              <div className="border border-gray-200 rounded-xl p-2 max-h-28 overflow-y-auto space-y-1 bg-gray-50">
+                {entrepots.length === 0
+                  ? <p className="text-xs text-gray-400 text-center py-2">Aucun entrepôt créé</p>
+                  : entrepots.map(e => {
+                    const sel = (formData.entrepot_ids || []).includes(e.id);
+                    return (
+                      <button
+                        key={e.id} type="button"
+                        onClick={() => toggleEntrepot(e.id)}
+                        className={`w-full text-left flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition ${sel ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'text-gray-600 hover:bg-white border border-transparent'}`}
+                      >
+                        <span className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 ${sel ? 'bg-blue-600 border-blue-600' : 'border-gray-300'}`}>
+                          {sel && <FaCheck className="text-white text-[8px]" />}
+                        </span>
+                        <span>{e.nom}</span>
+                        <span className={`ml-auto text-[9px] px-1.5 py-0.5 rounded-full ${e.type === 'magasin' ? 'bg-amber-100 text-amber-700' : 'bg-teal-100 text-teal-700'}`}>
+                          {e.type}
+                        </span>
+                      </button>
+                    );
+                  })
+                }
               </div>
-              <p className="text-xs text-orange-600 mt-2">⚡ Sera utilisé pour les futurs mouvements de stock dans l'historique</p>
+            </div>
+
+            {/* Prix achat */}
+            <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 space-y-3">
+              <p className="text-xs font-bold text-amber-600 uppercase tracking-wider">💰 Prix d'Achat</p>
+              <div>
+                <label className="text-xs text-gray-500 mb-1 block">{formData.nom_unite_gros || 'Gros'}</label>
+                <input type="number" name="prix_achat" value={formData.prix_achat || ''} onChange={handleChange}
+                  min="0" step="1" required
+                  className="w-full px-3 py-2 rounded-lg border border-amber-200 bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 text-sm" />
+              </div>
+              {hasDetail && (
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">{formData.unité || 'Détail'} (optionnel)</label>
+                  <input type="number" name="prix_achat_piece" value={formData.prix_achat_piece || ''} onChange={handleChange}
+                    min="0" step="1" placeholder="Calculé auto si vide"
+                    className="w-full px-3 py-2 rounded-lg border border-amber-200 bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 text-sm" />
+                </div>
+              )}
+              <p className="text-xs text-amber-500">⚡ Utilisé pour les futurs mouvements de stock · Les prix antérieurs sont préservés</p>
             </div>
           </div>
         </div>
 
-        <div className="mt-6 flex justify-end space-x-3">
-          <button
-            type="button"
-            onClick={handleCancel}
-            className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 transition font-medium flex items-center"
-            disabled={isLoading}
-          >
-            <FaTimes className="mr-2" /> Annuler
+        {/* Footer buttons */}
+        <div className="mt-6 flex justify-end gap-3 border-t border-gray-100 pt-5">
+          <button type="button" onClick={handleCancel} disabled={isLoading}
+            className="px-5 py-2.5 border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition flex items-center gap-2">
+            <FaTimes /> Annuler
           </button>
-          <button
-            type="submit"
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white transition font-medium flex items-center"
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <ClipLoader size={18} color="#ffffff" className="mr-2" />
-            ) : (
-              <>
-                {editingProduit ? (
-                  <FaSave className="mr-2" />
-                ) : (
-                  <FaPlus className="mr-2" />
-                )}
-                {editingProduit ? 'Enregistrer' : 'Ajouter'}
-              </>
-            )}
+          <button type="submit" disabled={isLoading}
+            className="px-6 py-2.5 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 rounded-xl text-white text-sm font-semibold transition-all shadow-md hover:shadow-lg flex items-center gap-2">
+            {isLoading ? <ClipLoader size={16} color="#ffffff" /> : (editingProduit ? <FaSave /> : <FaPlus />)}
+            {editingProduit ? 'Enregistrer' : 'Ajouter le Produit'}
           </button>
         </div>
       </form>
 
-      {/* Modal d'Importation */}
+      {/* Import Modal */}
       {showImportModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-[60] p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6 relative">
-            <button
-              onClick={() => setShowImportModal(false)}
-              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
-            >
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 relative">
+            <button onClick={() => setShowImportModal(false)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
               <FaTimes />
             </button>
-            <h3 className="text-lg font-bold mb-4">Choisir un achat à importer</h3>
-            <div className="max-h-80 overflow-y-auto space-y-2">
-              {unlinkedPurchases.map(purchase => (
-                <div
-                  key={purchase.id}
-                  onClick={() => handleImportPurchase(purchase)}
-                  className="p-3 border rounded-lg hover:bg-blue-50 cursor-pointer transition flex justify-between items-center"
-                >
+            <h3 className="text-base font-bold mb-4 text-gray-800">Importer depuis un achat existant</h3>
+            <div className="max-h-72 overflow-y-auto space-y-2">
+              {unlinkedPurchases.map(p => (
+                <div key={p.id} onClick={() => handleImportPurchase(p)}
+                  className="p-3 border border-gray-100 rounded-xl hover:bg-violet-50 hover:border-violet-200 cursor-pointer transition flex justify-between items-center">
                   <div>
-                    <p className="font-semibold">{purchase.nom}</p>
-                    <p className="text-xs text-gray-500">
-                      {new Date(purchase.created_at).toLocaleDateString()} - {purchase.quantite} {purchase.unite}
-                      {purchase.fournisseur_nom && ` • ${purchase.fournisseur_nom}`}
+                    <p className="font-semibold text-sm text-gray-800">{p.nom}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      {new Date(p.created_at).toLocaleDateString()} · {p.quantite} {p.unite}
+                      {p.fournisseur_nom && ` · ${p.fournisseur_nom}`}
                     </p>
                   </div>
-                  <div className="text-right">
-                    <p className="font-bold text-blue-600">{purchase.prix_achat.toLocaleString()} Ar</p>
-                  </div>
+                  <p className="font-bold text-violet-600 text-sm">{p.prix_achat.toLocaleString()} Ar</p>
                 </div>
               ))}
             </div>

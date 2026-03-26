@@ -21,15 +21,17 @@ export const AuthProvider = ({ children }) => {
     setIsLoading(false); // Fin du chargement
   }, []);
 
-  const login = (userData) => {
+  const login = (userData, token) => {
     setUser(userData);
-    localStorage.setItem('userId', userData.id); // Stocke seulement l'ID de l'utilisateur
+    localStorage.setItem('token', token);
+    localStorage.setItem('userId', userData.id);
     localStorage.setItem('user', JSON.stringify(userData));
   };
 
   const logout = () => {
     setUser(null);
-    localStorage.removeItem('userId'); // Supprime l'ID de l'utilisateur
+    localStorage.removeItem('token');
+    localStorage.removeItem('userId');
     localStorage.removeItem('user');
   };
 

@@ -1,9 +1,22 @@
 const db = require('../db');
+const { logAction } = require('../utils/logger');
 
 // Récupérer tous les produits
 exports.getAllProduits = (req, res) => {
     const query = `
-        SELECT p.*, c.nom AS categorie_nom, f.nom AS fournisseur_nom
+        SELECT p.*, c.nom AS categorie_nom, f.nom AS fournisseur_nom,
+               (
+                   SELECT COALESCE(CONCAT('[', GROUP_CONCAT(JSON_OBJECT('id', ff.id, 'nom', ff.nom)), ']'), '[]')
+                   FROM produit_fournisseurs pf
+                   JOIN fournisseurs ff ON ff.id = pf.fournisseur_id
+                   WHERE pf.produit_id = p.id
+               ) AS fournisseurs_list,
+               (
+                   SELECT COALESCE(CONCAT('[', GROUP_CONCAT(JSON_OBJECT('id', e.id, 'nom', e.nom, 'type', e.type)), ']'), '[]')
+                   FROM produit_entrepot pe
+                   JOIN entrepots e ON e.id = pe.entrepot_id
+                   WHERE pe.produit_id = p.id
+               ) AS entrepots_list
         FROM produits p 
         LEFT JOIN categories c ON p.category_id = c.id
         LEFT JOIN fournisseurs f ON p.fournisseur_id = f.id
@@ -15,7 +28,13 @@ exports.getAllProduits = (req, res) => {
             console.error('Erreur lors de la récupération des produits:', err);
             return res.status(500).send('Erreur interne du serveur');
         }
-        res.status(200).json(result);
+        // Parse JSON arrays
+        const parsed = result.map(r => ({
+            ...r,
+            fournisseurs_list: typeof r.fournisseurs_list === 'string' ? JSON.parse(r.fournisseurs_list) : (r.fournisseurs_list || []),
+            entrepots_list: typeof r.entrepots_list === 'string' ? JSON.parse(r.entrepots_list) : (r.entrepots_list || [])
+        }));
+        res.status(200).json(parsed);
     });
 };
 
@@ -77,8 +96,8 @@ exports.createProduit = (req, res) => {
                         }
 
                         db.query(
-                            'INSERT INTO produit_achat (nom, description, quantite, prix_achat, prix_vente, unite, category_id, produit_id, fournisseur_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                            [nom, 'Approvisionnement', histQuantite, histPrix, prix_carton || existingProduit.prix_carton || 0, histUnite, safeCategoryId, existingProduit.id, safeFournisseurId],
+                            'INSERT INTO produit_achat (nom, description, quantite, prix_achat, prix_vente, unite, category_id, produit_id, fournisseur_id, entrepot_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                            [nom, 'Approvisionnement', histQuantite, histPrix, prix_carton || existingProduit.prix_carton || 0, histUnite, safeCategoryId, existingProduit.id, safeFournisseurId, req.body.entrepot_id || null],
                             (errHist) => {
                                 if (errHist) console.error("Erreur enregistrement achat approvisionnement:", errHist);
                             }
@@ -103,8 +122,14 @@ exports.createProduit = (req, res) => {
 
         const query = 'INSERT INTO produits (nom, description, nom_unite_gros, quantite, prix, unité, category_id, pieces_par_carton, prix_carton, prix_piece, prix_achat, prix_achat_piece, fournisseur_id, stock_threshold) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
         const safeCategoryId = category_id && category_id !== '' ? category_id : null;
-        const safeFournisseurId = fournisseur_id && fournisseur_id !== '' ? fournisseur_id : null;
-        db.query(query, [nom, description, nom_unite_gros || 'Gros', quantite, prix || prix_carton || 0, unité || 'Détail', safeCategoryId, pieces_par_carton, prix_carton, prix_piece, prix_achat || 0, prix_achat_piece || 0, safeFournisseurId, stock_threshold || 0], (err, resultsInsert) => {
+        // Support N:N: fournisseur_id can be an array or single value
+        const fournisseurIds = Array.isArray(req.body.fournisseur_ids) ? req.body.fournisseur_ids
+            : (fournisseur_id && fournisseur_id !== '' ? [fournisseur_id] : []);
+        const safeFournisseurId = fournisseurIds.length > 0 ? fournisseurIds[0] : null;
+        // Entrepôt ids
+        const entrepotIds = Array.isArray(req.body.entrepot_ids) ? req.body.entrepot_ids : [];
+
+        db.query(query, [nom, description, nom_unite_gros || 'Gros', quantite, prix || prix_carton || 0, unité || 'Détail', safeCategoryId, pieces_par_carton, prix_carton, prix_piece, prix_achat || 0, prix_achat_piece || 0, safeFournisseurId, stock_threshold || 0], async (err, resultsInsert) => {
             if (err) {
                 console.error("Erreur insertion produit:", err);
                 return res.status(500).json({
@@ -114,6 +139,15 @@ exports.createProduit = (req, res) => {
             }
 
             const newId = resultsInsert.insertId;
+
+            // Insert N:N fournisseurs
+            for (const fid of fournisseurIds) {
+                db.query('INSERT IGNORE INTO produit_fournisseurs (produit_id, fournisseur_id) VALUES (?, ?)', [newId, fid]);
+            }
+            // Insert entrepots
+            for (const eid of entrepotIds) {
+                db.query('INSERT IGNORE INTO produit_entrepot (produit_id, entrepot_id) VALUES (?, ?)', [newId, eid]);
+            }
 
             // 1. Lier TOUS les achats orphelins avec ce nom à ce nouveau produit
             db.query('UPDATE produit_achat SET produit_id = ? WHERE nom = ? AND (produit_id IS NULL OR produit_id = 0)', [newId, nom], (errLink) => {
@@ -126,19 +160,18 @@ exports.createProduit = (req, res) => {
                     const quantiteGros = quantiteInitialePieces / ratio;
                     const targetUnite = (nom_unite_gros || 'Gros').trim();
                     db.query(
-                        'INSERT INTO produit_achat (nom, description, quantite, prix_achat, prix_vente, unite, category_id, produit_id, fournisseur_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                        [nom, 'Stock Initial', quantiteGros, prix_achat || 0, prix_carton || prix || 0, targetUnite, safeCategoryId, newId, safeFournisseurId],
+                        'INSERT INTO produit_achat (nom, description, quantite, prix_achat, prix_vente, unite, category_id, produit_id, fournisseur_id, entrepot_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                        [nom, 'Stock Initial', quantiteGros, prix_achat || 0, prix_carton || prix || 0, targetUnite, safeCategoryId, newId, safeFournisseurId, req.body.entrepot_id || null],
                         (errHist) => {
                             if (errHist) console.error("Erreur enregistrement stock initial:", errHist);
                         }
                     );
                 } else if (importSourceId) {
-                    // Lier spécifiquement l'achat source si c'est un import
                     db.query('UPDATE produit_achat SET produit_id = ? WHERE id = ?', [newId, importSourceId]);
                 }
             });
 
-            // Retourner le produit créé
+            await logAction(req.user?.id, 'add', 'produit', newId, null, req.body, `Création du produit: ${nom}`);
             const createdProduit = { id: newId, nom, description, nom_unite_gros, quantite, prix_carton, prix_piece, prix_achat, unité, category_id: safeCategoryId, fournisseur_id: safeFournisseurId, stock_threshold };
             if (req.io) req.io.emit('produit-updated', createdProduit);
             res.status(201).json(createdProduit);
@@ -182,18 +215,41 @@ exports.updateProduit = (req, res) => {
 
         const deltaPieces = newQuantite - oldQuantite;
 
+        // Support N:N fournisseurs
+        const fournisseurIds = Array.isArray(req.body.fournisseur_ids) ? req.body.fournisseur_ids
+            : (fournisseur_id && fournisseur_id !== '' ? [fournisseur_id] : []);
+        const mainFournisseurId = fournisseurIds.length > 0 ? fournisseurIds[0] : safeFournisseurId;
+        const entrepotIds = Array.isArray(req.body.entrepot_ids) ? req.body.entrepot_ids : null;
+
         const updateQuery = 'UPDATE produits SET nom = ?, description = ?, nom_unite_gros = ?, quantite = ?, prix = ?, unité = ?, category_id = ?, pieces_par_carton = ?, prix_carton = ?, prix_piece = ?, prix_achat = ?, prix_achat_piece = ?, fournisseur_id = ?, stock_threshold = ? WHERE id = ?';
         
-        db.query(updateQuery, [nom, description, nom_unite_gros || 'Gros', quantite, prix || prix_carton || 0, unité || 'Détail', safeCategoryId, pieces_par_carton, prix_carton, prix_piece, prix_achat || 0, prix_achat_piece || 0, safeFournisseurId, stock_threshold || 0, id], (err, results) => {
+        db.query(updateQuery, [nom, description, nom_unite_gros || 'Gros', quantite, prix || prix_carton || 0, unité || 'Détail', safeCategoryId, pieces_par_carton, prix_carton, prix_piece, prix_achat || 0, prix_achat_piece || 0, mainFournisseurId, stock_threshold || 0, id], async (err, results) => {
             if (err) {
                 return res.status(500).json({ message: 'Erreur lors de la mise à jour du produit', error: err.message });
             }
 
-            // Sync metadata for historical purchases
-            const updateAchatQuery = `UPDATE produit_achat SET nom = ?, unite = ?, category_id = ?, fournisseur_id = ?, prix_achat = ? WHERE produit_id = ?`;
-            db.query(updateAchatQuery, [nom, nom_unite_gros || 'Gros', safeCategoryId, safeFournisseurId, prix_achat || 0, id], (errAchat) => {
-                if (errAchat) console.error("Erreur mise à jour produit_achat metadata:", errAchat);
+            // ✅ FIX CRITIQUE: NE PAS mettre à jour prix_achat dans produit_achat
+            // Cela préserve l'historique des prix. Seul le nom est mis à jour pour rester cohérent.
+            const updateAchatMeta = `UPDATE produit_achat SET nom = ? WHERE produit_id = ?`;
+            db.query(updateAchatMeta, [nom, id], (errAchat) => {
+                if (errAchat) console.error("Erreur mise à jour nom dans produit_achat:", errAchat);
             });
+
+            // Mise à jour N:N fournisseurs
+            db.query('DELETE FROM produit_fournisseurs WHERE produit_id = ?', [id], () => {
+                for (const fid of fournisseurIds) {
+                    db.query('INSERT IGNORE INTO produit_fournisseurs (produit_id, fournisseur_id) VALUES (?, ?)', [id, fid]);
+                }
+            });
+
+            // Mise à jour entrepots (si fournis)
+            if (entrepotIds !== null) {
+                db.query('DELETE FROM produit_entrepot WHERE produit_id = ?', [id], () => {
+                    for (const eid of entrepotIds) {
+                        db.query('INSERT IGNORE INTO produit_entrepot (produit_id, entrepot_id) VALUES (?, ?)', [id, eid]);
+                    }
+                });
+            }
 
             // If stock was edited via the form, automatically generate adjustment logs
             if (Math.abs(deltaPieces) > 0.001) {
@@ -254,6 +310,7 @@ exports.updateProduit = (req, res) => {
                 }
             }
 
+            await logAction(req.user?.id, 'update', 'produit', id, null, req.body, `Mise à jour du produit: ${nom}`);
             const updatedProduit = { id, nom, description, quantite, prix_carton, prix_piece, prix_achat_piece, pieces_par_carton, unité, category_id, fournisseur_id: safeFournisseurId, stock_threshold };
             if (req.io) {
                 req.io.emit('produit-updated', updatedProduit);
@@ -362,10 +419,11 @@ exports.addQuantite = async (req, res) => {
         // On log le prix unitaire tel qu'il a été saisi
         const pAchatLog = (newPrixAchat !== undefined && newPrixAchat !== null) ? parseFloat(newPrixAchat) : (unite === 'piece' ? pAchatPieceFinal : pAchatFinal);
         const pVenteLog = (unite === 'piece' ? produit.prix_piece : produit.prix_carton) || 0;
+        const safeEntrepotId = (req.body.entrepot_id !== undefined && req.body.entrepot_id !== null && req.body.entrepot_id !== '') ? req.body.entrepot_id : null;
 
         await queryAsync(
-            'INSERT INTO produit_achat (nom, description, quantite, prix_achat, prix_vente, unite, category_id, produit_id, fournisseur_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            [produit.nom, 'Ajustement (+)', valToAdd, pAchatLog, pVenteLog, targetUnite, produit.category_id || null, produit.id, produit.fournisseur_id || null]
+            'INSERT INTO produit_achat (nom, description, quantite, prix_achat, prix_vente, unite, category_id, produit_id, fournisseur_id, entrepot_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [produit.nom, 'Ajustement (+)', valToAdd, pAchatLog, pVenteLog, targetUnite, produit.category_id || null, produit.id, produit.fournisseur_id || null, safeEntrepotId]
         );
         
         const updatedProduit = { ...produit, quantite: nouvelleQuantite, prix_achat: pAchatFinal, prix_achat_piece: pAchatPieceFinal };
@@ -401,7 +459,19 @@ exports.removeQuantite = async (req, res) => {
         const produit = rows[0];
 
         if (parseFloat(produit.quantite) < quantiteARetirer) {
-            throw new Error(`Stock insuffisant pour ${produit.nom} (Dispo: ${produit.quantite}, Requis: ${quantiteARetirer})`);
+            const ratio = produit.pieces_par_carton || 1;
+            const dispoCartons = Math.floor(produit.quantite / ratio);
+            const dispoPieces = produit.quantite % ratio;
+            
+            let dispoStr = "";
+            if (ratio > 1) {
+                dispoStr = `${dispoCartons} ${produit.nom_unite_gros || 'carton'}(s)`;
+                if (dispoPieces > 0) dispoStr += ` et ${dispoPieces} ${produit.unité || 'pièce'}(s)`;
+            } else {
+                dispoStr = `${produit.quantite} ${produit.nom_unite_gros || 'unité(s)'}`;
+            }
+
+            throw new Error(`Stock insuffisant pour ${produit.nom} (Disponible: ${dispoStr})`);
         }
 
         // 1. Mettre à jour produits

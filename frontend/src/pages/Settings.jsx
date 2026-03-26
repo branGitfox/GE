@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import axios from 'axios';
 import { FiDownload, FiUpload, FiDatabase, FiAlertCircle, FiTrash2 } from 'react-icons/fi';
 import { API_URL } from '../config';
 import ConfirmModal from '../components/ConfirmModal';
@@ -17,14 +18,12 @@ const Settings = () => {
         setMessage({ type: '', text: '' });
 
         try {
-            const response = await fetch(`${API_URL}/api/backup/export`);
-
-            if (!response.ok) {
-                throw new Error('Erreur lors de la création du backup');
-            }
+            const response = await axios.get(`${API_URL}/api/backup/export`, {
+                responseType: 'blob'
+            });
 
             // Get filename from Content-Disposition header if available
-            const contentDisposition = response.headers.get('Content-Disposition');
+            const contentDisposition = response.headers['content-disposition'];
             let filename = 'backup.sql';
 
             if (contentDisposition) {
@@ -35,7 +34,7 @@ const Settings = () => {
             }
 
             // Convert response to blob
-            const blob = await response.blob();
+            const blob = response.data;
 
             // Create download link
             const url = window.URL.createObjectURL(blob);
@@ -57,7 +56,7 @@ const Settings = () => {
             console.error('Backup error:', error);
             setMessage({
                 type: 'error',
-                text: 'Erreur lors de la création du backup.'
+                text: error.response?.data?.message || 'Erreur lors de la création du backup.'
             });
         } finally {
             setLoading(false);
@@ -96,16 +95,11 @@ const Settings = () => {
             const formData = new FormData();
             formData.append('sqlFile', selectedFile);
 
-            const response = await fetch(`${API_URL}/api/backup/import`, {
-                method: 'POST',
-                body: formData
+            const response = await axios.post(`${API_URL}/api/backup/import`, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
             });
 
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.message || 'Erreur lors de l\'import');
-            }
+            const data = response.data;
 
             setMessage({
                 type: 'success',
@@ -119,7 +113,7 @@ const Settings = () => {
             console.error('Import error:', error);
             setMessage({
                 type: 'error',
-                text: error.message || 'Erreur lors de l\'import de la base de données'
+                text: error.response?.data?.message || 'Erreur lors de l\'import de la base de données'
             });
         } finally {
             setImportLoading(false);
@@ -135,19 +129,13 @@ const Settings = () => {
         setMessage({ type: '', text: '' });
 
         try {
-            const response = await fetch(`${API_URL}/api/backup/reset`, {
-                method: 'POST',
+            const response = await axios.post(`${API_URL}/api/backup/reset`, {}, {
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${localStorage.getItem('token')}`
                 }
             });
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.message || 'Erreur lors de la réinitialisation');
-            }
+            const data = response.data;
 
             setMessage({
                 type: 'success',
@@ -166,11 +154,21 @@ const Settings = () => {
     };
 
     return (
-        <div className="space-y-6">
-            <div>
-                <h1 className="text-2xl font-bold text-gray-800">Paramètres</h1>
-                <p className="text-gray-600 mt-1">Gérez les paramètres de votre application</p>
-            </div>
+    <div className="max-w-7xl mx-auto space-y-6">
+      {/* Hero Header */}
+      <div className="bg-gradient-to-r from-slate-600 via-slate-700 to-slate-800 rounded-2xl p-6 mb-6 shadow-xl relative overflow-hidden">
+        <div className="absolute top-0 right-0 p-8 opacity-10">
+          <FiDatabase size={120} />
+        </div>
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
+          <div>
+            <h1 className="text-2xl font-bold text-white flex items-center gap-3">
+              <FiDatabase className="text-white/80" /> Paramètres Système
+            </h1>
+            <p className="text-white/70 text-sm mt-1">Gérez vos sauvegardes, restaurations et maintenez votre base de données</p>
+          </div>
+        </div>
+      </div>
 
             {/* Message display */}
             {message.text && (

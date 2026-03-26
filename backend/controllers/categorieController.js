@@ -1,4 +1,5 @@
 const db = require('../db');
+const { logAction } = require('../utils/logger');
 
 // Récupérer toutes les catégories
 exports.getAllCategories = (req, res) => {
@@ -29,6 +30,7 @@ exports.createCategory = (req, res) => {
             }
             return res.status(500).send('Erreur lors de la création de la catégorie');
         }
+        logAction(req.user?.id, 'add', 'categorie', result.insertId, null, req.body, `Création de la catégorie: ${nom}`);
         res.status(201).json({ id: result.insertId, nom, description });
     });
 };
@@ -47,6 +49,7 @@ exports.updateCategory = (req, res) => {
         if (result.affectedRows === 0) {
             return res.status(404).json({ message: 'Catégorie non trouvée' });
         }
+        logAction(req.user?.id, 'update', 'categorie', id, null, req.body, `Mise à jour de la catégorie: ${nom}`);
         res.json({ id, nom, description });
     });
 };
@@ -64,6 +67,7 @@ exports.deleteCategory = (req, res) => {
         if (result.affectedRows === 0) {
             return res.status(404).json({ message: 'Catégorie non trouvée' });
         }
+        logAction(req.user?.id, 'delete', 'categorie', id, null, null, `Suppression de la catégorie ID: ${id}`);
         res.json({ message: 'Catégorie supprimée avec succès' });
     });
 };

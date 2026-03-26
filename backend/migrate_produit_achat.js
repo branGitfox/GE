@@ -1,29 +1,30 @@
-const db = require('./db');
+const mysql = require('mysql2');
+require('dotenv').config();
 
-const createProduitAchatTable = () => {
-    const query = `
-        CREATE TABLE IF NOT EXISTS produit_achat (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            nom VARCHAR(255) NOT NULL,
-            description TEXT,
-            quantite DECIMAL(10, 2) DEFAULT 0,
-            prix_achat DECIMAL(10, 2) NOT NULL DEFAULT 0,
-            prix_vente DECIMAL(10, 2) NOT NULL DEFAULT 0,
-            unite VARCHAR(100),
-            category_id INT,
-            produit_id INT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    `;
+const db = mysql.createConnection({
+    host: process.env.DB_HOST || 'localhost',
+    user: process.env.DB_USER || 'root',
+    password: process.env.DB_PASSWORD || '',
+    database: process.env.DB_NAME || 'ge',
+    port: process.env.DB_PORT || 3306
+});
 
-    db.query(query, (err, result) => {
+db.connect(err => {
+    if (err) {
+        console.error('Connection error:', err.message);
+        process.exit(1);
+    }
+    const query = "ALTER TABLE produit_achat ADD COLUMN entrepot_id INT NULL AFTER fournisseur_id";
+    db.query(query, (err, res) => {
         if (err) {
-            console.error('Erreur lors de la création de la table produit_achat:', err);
+            if (err.errno === 1060) {
+                console.log('Column already exists');
+            } else {
+                console.error(err);
+            }
         } else {
-            console.log('✅ Table produit_achat vérifiée/créée avec succès');
+            console.log('Column added successfully');
         }
-        process.exit();
+        db.end();
     });
-};
-
-createProduitAchatTable();
+});
