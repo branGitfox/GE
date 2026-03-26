@@ -40,8 +40,8 @@ exports.loginUser = async (req, res) => {
           return res.status(401).send({ message: 'Mot de passe incorrect.' });
         }
   
-        // Générer un token JWT
-        const token = jwt.sign({ id: user.id, role: user.role }, SECRET_KEY, { expiresIn: '1h' });
+        // Générer un token JWT (Expire dans 1 an pour rester connecté)
+        const token = jwt.sign({ id: user.id, role: user.role }, SECRET_KEY, { expiresIn: '365d' });
         
         res.status(200).send({
           message: 'Connexion réussie',

@@ -1,4 +1,5 @@
 const db = require('../db');
+const { logAction } = require('../utils/logger');
 const path = require('path');
 const fs = require('fs');
 require('dotenv').config();
@@ -121,13 +122,15 @@ exports.backupDatabase = async (req, res) => {
                                 }
 
                                 // Send file for download
-                                res.download(filepath, filename, (err) => {
+                                res.download(filepath, filename, async (err) => {
                                     if (err) {
                                         console.error('Download error:', err);
                                         return res.status(500).json({
                                             message: 'Erreur lors du téléchargement du backup'
                                         });
                                     }
+                                    
+                                    await logAction(req.user?.id, 'backup', 'system', null, null, null, `Exportation de la base de données: ${filename}`);
 
                                     // Optionally delete the file after download
                                     // setTimeout(() => {
@@ -180,7 +183,7 @@ exports.importDatabase = async (req, res) => {
             const finalSql = `SET FOREIGN_KEY_CHECKS = 0;\n${sqlContent}\nSET FOREIGN_KEY_CHECKS = 1;`;
 
             // Execute the entire SQL content at once (leveraging multipleStatements: true)
-            db.query(finalSql, (err, results) => {
+            db.query(finalSql, async (err, results) => {
                 // Clean up uploaded file
                 if (fs.existsSync(filepath)) {
                     fs.unlinkSync(filepath);
@@ -189,10 +192,10 @@ exports.importDatabase = async (req, res) => {
                 if (err) {
                     console.error('Import SQL error:', err);
                     return res.status(500).json({
-                        message: 'Erreur lors de l\'exécution du SQL',
-                        error: err.message
                     });
                 }
+                
+                await logAction(req.user?.id, 'backup_import', 'system', null, null, null, `Importation d'une base de données (${req.file.originalname})`);
 
                 // If multipleStatements is on, results is an array of results for each statement
                 const totalStatements = Array.isArray(results) ? results.length : 1;
@@ -240,7 +243,7 @@ exports.resetDatabase = async (req, res) => {
             const truncateNext = (index) => {
                 if (index >= tablesToTruncate.length) {
                     // Re-enable foreign key checks
-                    db.query('SET FOREIGN_KEY_CHECKS = 1', (err) => {
+                    db.query('SET FOREIGN_KEY_CHECKS = 1', async (err) => {
                         if (err) {
                             console.error('Error enabling FK checks:', err);
                         }
@@ -251,6 +254,8 @@ exports.resetDatabase = async (req, res) => {
                                 errors
                             });
                         }
+
+                        await logAction(req.user?.id, 'reset', 'system', null, null, null, `Réinitialisation complète de la base de données`);
 
                         return res.status(200).json({
                             message: 'Base de données réinitialisée avec succès ! Tous les IDs sont revenus à 1.'

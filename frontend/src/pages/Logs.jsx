@@ -32,7 +32,11 @@ const Logs = () => {
         switch (type) {
             case 'add': return <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 border border-emerald-200">Ajout</span>;
             case 'edit':
-            case 'update': return <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700 border border-amber-200">Modification</span>;
+            case 'update': 
+            case 'backup':
+            case 'backup_import':
+            case 'reset':
+                return <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700 border border-amber-200">Action Système</span>;
             case 'delete': return <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-rose-100 text-rose-700 border border-rose-200">Suppression</span>;
             default: return <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">{type}</span>;
         }
@@ -43,7 +47,13 @@ const Logs = () => {
             case 'produit': return <FiBox className="text-indigo-500" />;
             case 'facture': return <FiFileText className="text-emerald-500" />;
             case 'client': return <FiUser className="text-violet-500" />;
+            case 'category':
             case 'categorie': return <FiTag className="text-pink-500" />;
+            case 'depense': return <FiFileText className="text-amber-500" />;
+            case 'fournisseur': return <FiUser className="text-orange-500" />;
+            case 'entrepot': return <FiBox className="text-blue-500" />;
+            case 'user': return <FiUser className="text-red-500" />;
+            case 'system': return <FiActivity className="text-indigo-500" />;
             default: return <FiActivity className="text-slate-400" />;
         }
     };
@@ -51,7 +61,9 @@ const Logs = () => {
     const filteredLogs = logs.filter(log => {
         const matchesSearch = log.description.toLowerCase().includes(searchTerm.toLowerCase()) || 
                              (log.user_nom && log.user_nom.toLowerCase().includes(searchTerm.toLowerCase()));
-        const matchesFilter = filterType === 'all' || log.action_type === filterType;
+        const matchesFilter = filterType === 'all' || 
+                             (filterType === 'edit' && (log.action_type === 'edit' || log.action_type === 'update')) ||
+                             log.action_type === filterType;
         return matchesSearch && matchesFilter;
     });
 

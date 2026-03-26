@@ -348,10 +348,10 @@ exports.getRecentProduits = (req, res) => {
 
 
 // Supprimer un produit
-exports.deleteProduit = (req, res) => {
+exports.deleteProduit = async (req, res) => {
     const { id } = req.params;
 
-    db.query('DELETE FROM produits WHERE id = ?', [id], (error, results) => {
+    db.query('DELETE FROM produits WHERE id = ?', [id], async (error, results) => {
         if (error) {
             return res.status(500).json({
                 message: 'Erreur lors de la suppression du produit',
@@ -363,6 +363,7 @@ exports.deleteProduit = (req, res) => {
             return res.status(404).json({ message: 'Produit non trouvé' });
         }
 
+        await logAction(req.user?.id, 'delete', 'produit', id, null, null, `Suppression du produit ID: ${id}`);
         res.json({ message: 'Produit supprimé avec succès' });
     });
 };
@@ -425,6 +426,8 @@ exports.addQuantite = async (req, res) => {
             'INSERT INTO produit_achat (nom, description, quantite, prix_achat, prix_vente, unite, category_id, produit_id, fournisseur_id, entrepot_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
             [produit.nom, 'Ajustement (+)', valToAdd, pAchatLog, pVenteLog, targetUnite, produit.category_id || null, produit.id, produit.fournisseur_id || null, safeEntrepotId]
         );
+        
+        await logAction(req.user?.id, 'update', 'produit', id, null, req.body, `Ajout de stock (+${valToAdd} ${targetUnite}) pour ${produit.nom}`);
         
         const updatedProduit = { ...produit, quantite: nouvelleQuantite, prix_achat: pAchatFinal, prix_achat_piece: pAchatPieceFinal };
         if (req.io) {
@@ -499,6 +502,8 @@ exports.removeQuantite = async (req, res) => {
             'INSERT INTO produit_achat (nom, description, quantite, prix_achat, prix_vente, unite, category_id, produit_id, fournisseur_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
             [produit.nom, 'Ajustement (-)', -valToSub, pAchat, pVente, targetUnite, produit.category_id || null, produit.id, produit.fournisseur_id || null]
         );
+        await logAction(req.user?.id, 'update', 'produit', id, null, req.body, `Retrait de stock (-${valToSub} ${targetUnite}) pour ${produit.nom}`);
+
         const updatedProduit = { ...produit, quantite: nouvelleQuantite };
         if (req.io) {
             req.io.emit('produit-updated', updatedProduit);

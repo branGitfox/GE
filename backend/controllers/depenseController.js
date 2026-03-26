@@ -1,4 +1,5 @@
 const db = require('../db');
+const { logAction } = require('../utils/logger');
 
 // Récupérer toutes les dépenses (avec filtre optionnel entre 2 dates)
 exports.getAllDepenses = (req, res) => {
@@ -45,15 +46,16 @@ exports.getDepensesStats = (req, res) => {
 };
 
 // Créer une nouvelle dépense
-exports.createDepense = (req, res) => {
+exports.createDepense = async (req, res) => {
     const { nom, montant, description, date, fournisseur_id } = req.body;
     const query = 'INSERT INTO depenses (nom, montant, description, date, fournisseur_id) VALUES (?, ?, ?, ?, ?)';
     const safeFournisseurId = fournisseur_id && fournisseur_id !== '' ? fournisseur_id : null;
-    db.query(query, [nom, montant, description, date, safeFournisseurId], (err, results) => {
+    db.query(query, [nom, montant, description, date, safeFournisseurId], async (err, results) => {
         if (err) {
             console.error('Erreur lors de la création de la dépense:', err);
             return res.status(500).json({ message: 'Erreur lors de la création de la dépense', error: err.message });
         }
+        await logAction(req.user?.id, 'add', 'depense', results.insertId, null, req.body, `Création de la dépense: ${nom} (${montant} FMG)`);
         res.status(201).json({
             id: results.insertId,
             nom,
@@ -66,13 +68,13 @@ exports.createDepense = (req, res) => {
 };
 
 // Mettre à jour une dépense existante
-exports.updateDepense = (req, res) => {
+exports.updateDepense = async (req, res) => {
     const { id } = req.params;
     const { nom, montant, description, date, fournisseur_id } = req.body;
 
     const query = 'UPDATE depenses SET nom = ?, montant = ?, description = ?, date = ?, fournisseur_id = ? WHERE id = ?';
     const safeFournisseurId = fournisseur_id && fournisseur_id !== '' ? fournisseur_id : null;
-    db.query(query, [nom, montant, description, date, safeFournisseurId, id], (err, results) => {
+    db.query(query, [nom, montant, description, date, safeFournisseurId, id], async (err, results) => {
         if (err) {
             return res.status(500).json({
                 message: 'Erreur lors de la mise à jour de la dépense',
@@ -84,15 +86,16 @@ exports.updateDepense = (req, res) => {
             return res.status(404).json({ message: 'Dépense non trouvée' });
         }
 
+        await logAction(req.user?.id, 'update', 'depense', id, null, req.body, `Mise à jour de la dépense: ${nom}`);
         res.json({ id, nom, montant, description, date, fournisseur_id: safeFournisseurId });
     });
 };
 
 // Supprimer une dépense
-exports.deleteDepense = (req, res) => {
+exports.deleteDepense = async (req, res) => {
     const { id } = req.params;
 
-    db.query('DELETE FROM depenses WHERE id = ?', [id], (error, results) => {
+    db.query('DELETE FROM depenses WHERE id = ?', [id], async (error, results) => {
         if (error) {
             return res.status(500).json({
                 message: 'Erreur lors de la suppression de la dépense',
@@ -104,6 +107,7 @@ exports.deleteDepense = (req, res) => {
             return res.status(404).json({ message: 'Dépense non trouvée' });
         }
 
+        await logAction(req.user?.id, 'delete', 'depense', id, null, null, `Suppression de la dépense ID: ${id}`);
         res.json({ message: 'Dépense supprimée avec succès' });
     });
 };
