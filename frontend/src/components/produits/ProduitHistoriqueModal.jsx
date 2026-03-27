@@ -73,8 +73,8 @@ const ProduitHistoriqueModal = ({ produit, onClose }) => {
                       </div>
                       {h.prix_achat > 0 && !h.is_vente && (
                         <span className={`text-[10px] mt-1 px-1 rounded font-bold ${priceChanged ? 'text-emerald-600 bg-emerald-50 ring-1 ring-emerald-200' : 'text-gray-500'}`}>
-                          @ {parseFloat(h.prix_achat).toLocaleString()} Ar
-                          {priceChanged && <span className="ml-1 italic text-[8px]">Novo</span>}
+                          @ {parseFloat(h.prix_achat).toLocaleString()} Fmg
+                          {priceChanged && <span className="ml-1 italic text-[8px]">nouveau</span>}
                         </span>
                       )}
                     </div>
