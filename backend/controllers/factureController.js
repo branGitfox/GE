@@ -150,201 +150,66 @@ exports.createFacture = async (req, res) => {
 
 // Dans votre backend (factureController.js)
 exports.deleteFacture = async (req, res) => {
+  const { id } = req.params;
+
+  const queryAsync = (sql, params) => new Promise((resolve, reject) => {
+    db.query(sql, params, (err, results) => err ? reject(err) : resolve(results));
+  });
+
   try {
-    const { id } = req.params;
+    // 1. Démarrer la transaction
+    await queryAsync("START TRANSACTION", []);
 
-    const query = 'DELETE FROM factures WHERE id = ?';
-    db.query(query, [id], (err, result) => {
-      if (err) throw err;
+    // 2. Récupérer la facture pour vérifier le paiement et les articles
+    const factures = await queryAsync("SELECT * FROM factures WHERE id = ?", [id]);
+    if (factures.length === 0) {
+      throw new Error("Facture non trouvée");
+    }
+    const facture = factures[0];
 
-      if (result.affectedRows === 0) {
-        return res.status(404).json({ message: "Facture non trouvée" });
+    // 3. Vérifier si elle est payée ou a une avance
+    if (parseFloat(facture.paiement) > 0) {
+      throw new Error("Impossible de supprimer une facture payée ou avec une avance.");
+    }
+
+    // 4. Retourner les stocks (uniquement si c'est une facture déjà validée)
+    if (facture.status === 'facture' || !facture.status) {
+      const articles = JSON.parse(facture.liste_articles || "[]");
+      for (const article of articles) {
+        const resP = await queryAsync("SELECT pieces_par_carton FROM produits WHERE id = ?", [article.produit_id]);
+        const produit = resP[0];
+        
+        if (produit) {
+          const multi = article.type_vente === 'carton' ? (produit.pieces_par_carton || 1) : 1;
+          const qtyToRestore = parseFloat(article.quantite) * multi;
+
+          await queryAsync(
+            "UPDATE produits SET quantite = quantite + ? WHERE id = ?",
+            [qtyToRestore, article.produit_id]
+          );
+        }
       }
+    }
 
-      res.status(200).json({ message: "Facture supprimée avec succès" });
-      logAction(req.user?.id, 'delete', 'facture', id, null, null, `Suppression de la facture ID: ${id}`);
-    });
+    // 5. Supprimer la facture
+    await queryAsync("DELETE FROM factures WHERE id = ?", [id]);
+
+    // 6. Valider la transaction
+    await queryAsync("COMMIT", []);
+
+    await logAction(req.user?.id, 'delete', 'facture', id, null, null, `Suppression de la facture ${facture.numero_facture} et retour des stocks.`);
+    res.status(200).json({ message: "Facture supprimée et stocks retournés avec succès" });
+
   } catch (error) {
-    res.status(500).json({
-      message: "Erreur lors de la suppression de la facture",
-      error: error.message
-    });
+    await queryAsync("ROLLBACK", []).catch(() => { });
+    console.error("❌ Erreur Suppression Facture:", error);
+    res.status(400).json({ message: error.message || "Erreur lors de la suppression de la facture" });
   }
 };
 
 // Update/Edit a facture with stock management
 exports.updateFacture = async (req, res) => {
-  const { id } = req.params;
-  const {
-    client_id,
-    date_facture,
-    liste_articles,
-    prix_total,
-    Objet,
-    commentaire,
-    temp_client_nom,
-    temp_client_adresse,
-    temp_client_telephone,
-    temp_client_email,
-    status = 'facture',
-    remise = 0
-  } = req.body;
-
-  if ((!client_id && !temp_client_nom) || !liste_articles?.length || !prix_total) {
-    return res.status(400).json({ message: "Données manquantes ou invalides" });
-  }
-
-  db.beginTransaction(async (err) => {
-    if (err) {
-      return res.status(500).json({ message: "Erreur de transaction" });
-    }
-
-    try {
-      // 1. Get the old invoice to restore stock
-      db.query(
-        "SELECT liste_articles, status FROM factures WHERE id = ?",
-        [id],
-        async (err, oldFactureRows) => {
-          if (err) throw err;
-          if (oldFactureRows.length === 0) {
-            return db.rollback(() => {
-              res.status(404).json({ message: "Facture non trouvée" });
-            });
-          }
-
-          const oldFacture = oldFactureRows[0];
-          const oldArticles = JSON.parse(oldFacture.liste_articles || "[]");
-          const oldStatus = oldFacture.status || 'facture';
-
-          // 2. Restore stock from old invoice (ONLY if it was a real facture)
-          if (oldStatus === 'facture') {
-            for (const article of oldArticles) {
-              await new Promise((resolve, reject) => {
-                db.query("SELECT pieces_par_carton FROM produits WHERE id = ?", [article.produit_id], (err, resP) => {
-                  if (err) reject(err);
-                  const multi = article.type_vente === 'carton' ? (resP[0]?.pieces_par_carton || 1) : 1;
-                  const qtyToRestore = article.quantite * multi;
-
-                  db.query(
-                    "UPDATE produits SET quantite = quantite + ? WHERE id = ?",
-                    [qtyToRestore, article.produit_id],
-                    (err) => {
-                      if (err) reject(err);
-                      else resolve();
-                    }
-                  );
-                });
-              });
-            }
-          }
-
-          // 3. Verify and deduct new stock (ONLY if the new status is a real facture)
-          if (status === 'facture') {
-            for (const article of liste_articles) {
-              const produit = await new Promise((resolve, reject) => {
-                db.query(
-                  "SELECT nom, quantite, pieces_par_carton FROM produits WHERE id = ?",
-                  [article.produit_id],
-                  (err, result) => {
-                    if (err) reject(err);
-                    else resolve(result[0]);
-                  }
-                );
-              });
-
-              const multi = article.type_vente === 'carton' ? (produit?.pieces_par_carton || 1) : 1;
-              const qtyToDeduct = article.quantite * multi;
-
-              if (!produit || parseFloat(produit.quantite) < qtyToDeduct) {
-                return db.rollback(() => {
-                  res.status(400).json({
-                    message: `Stock insuffisant pour ${produit?.nom || article.nom || article.produit_id} (Requis: ${qtyToDeduct} pièces, Dispo: ${produit?.quantite || 0})`
-                  });
-                });
-              }
-
-              await new Promise((resolve, reject) => {
-                db.query(
-                  "UPDATE produits SET quantite = quantite - ? WHERE id = ?",
-                  [qtyToDeduct, article.produit_id],
-                  (err) => {
-                    if (err) reject(err);
-                    else resolve();
-                  }
-                );
-              });
-            }
-          }
-
-          // 4. Update the invoice
-          db.query(
-            `UPDATE factures SET 
-              client_id = ?, 
-              temp_client_nom = ?,
-              temp_client_adresse = ?,
-              temp_client_telephone = ?,
-              temp_client_email = ?,
-              date_facture = ?, 
-              liste_articles = ?, 
-              prix_total = ?,
-              Objet = ?,
-              commentaire = ?,
-              paiement = ?,
-              date_paiement = ?,
-              status = ?,
-              remise = ?
-            WHERE id = ?`,
-            [
-              client_id || null,
-              client_id ? null : temp_client_nom,
-              client_id ? null : temp_client_adresse,
-              client_id ? null : temp_client_telephone,
-              client_id ? null : temp_client_email,
-              date_facture,
-              JSON.stringify(liste_articles),
-              prix_total,
-              Objet || null,
-              commentaire || null,
-              req.body.paiement !== undefined ? req.body.paiement : 0,
-              req.body.paiement > 0 ? new Date().toLocaleDateString('en-CA') : null,
-              status,
-              remise || 0,
-              id
-            ],
-            async (err, result) => {
-              if (err) {
-                return db.rollback(() => {
-                  throw err;
-                });
-              }
-
-              await logAction(req.user?.id, 'update', 'facture', id, null, req.body, `Mise à jour de la facture: ${oldFacture.numero_facture}`);
-
-              db.commit((err) => {
-                if (err) {
-                  return db.rollback(() => {
-                    throw err;
-                  });
-                }
-
-                res.status(200).json({
-                  message: "Facture mise à jour avec succès",
-                  factureId: id
-                });
-              });
-            }
-          );
-        }
-      );
-    } catch (error) {
-      db.rollback(() => {
-        res.status(500).json({
-          message: "Erreur lors de la mise à jour de la facture",
-          error: error.message
-        });
-      });
-    }
-  });
+  res.status(403).json({ message: "La modification des factures est désactivée." });
 };
 
 

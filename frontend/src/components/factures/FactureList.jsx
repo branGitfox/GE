@@ -258,18 +258,10 @@ const FactureList = ({
                             )}
                             <PDFButton facture={facture} clients={clients} />
                             <button
-                              onClick={() => onEditFacture(facture)}
-                              className="p-2 text-blue-500 hover:text-blue-700 transition-colors"
-                              title={isProforma ? "Modifier le devis" : "Modifier la facture"}
-                              disabled={loading.factures}
-                            >
-                              <FaEdit />
-                            </button>
-                            <button
                               onClick={() => onDeleteFacture(facture.id)}
-                              className="p-2 text-red-500 hover:text-red-700 transition-colors"
-                              title="Supprimer la facture"
-                              disabled={loading.factures}
+                              className={`p-2 transition-colors ${paid > 0 ? 'text-gray-300 cursor-not-allowed' : 'text-red-500 hover:text-red-700'}`}
+                              title={paid > 0 ? "Impossible de supprimer une facture payée" : "Supprimer la facture"}
+                              disabled={loading.factures || paid > 0}
                             >
                               {loading.factures ? (
                                 <ClipLoader size={16} color="#EF4444" />

@@ -337,9 +337,8 @@ const Proformas = () => {
 
     try {
       setLoading(prev => ({ ...prev, submit: true }));
-      const response = await axios.put(`${API_URL}/api/factures/${factureToConvert.id}`, {
+      const response = await axios.put(`${API_URL}/api/factures/${factureToConvert.id}/convert`, {
         ...factureToConvert,
-        status: 'facture',
         paiement: 0
       });
 
