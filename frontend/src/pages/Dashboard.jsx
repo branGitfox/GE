@@ -109,11 +109,11 @@ const Dashboard = () => {
         <div className="px-5 pt-6 pb-4 border-b border-white/10">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-gradient-to-br from-violet-500 to-indigo-500 rounded-xl flex items-center justify-center shadow-lg">
-              <FiBox size={20} className="text-white" />
+              <img src="/soa.png" alt="" />
             </div>
             <div>
-              <p className="font-bold text-white text-sm">GE Manager</p>
-              <p className="text-white/40 text-xs">Gestion d'entreprise</p>
+              <p className="font-bold text-white text-sm">GE-SOA</p>
+              <p className="text-white/40 text-xs">Gestion de Grossiste</p>
             </div>
           </div>
         </div>
