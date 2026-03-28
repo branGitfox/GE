@@ -251,7 +251,7 @@ const DashboardHome = () => {
         </div>
     );
 
-    const totalActualBenefice = soldProducts.reduce((acc, p) => acc + ((p.prix - p.prix_achat) * p.quantite), 0);
+    const totalActualBenefice = soldProducts.reduce((acc, p) => acc + (p.totalBenefice || 0), 0);
 
     if (loading && !stats.totalRevenue) return (
         <div className="flex items-center justify-center min-h-screen">
@@ -597,7 +597,7 @@ const DashboardHome = () => {
                                     </thead>
                                     <tbody>
                                         {paginate(filteredSoldProducts, soldPage).map((product, index) => {
-                                            const benefice = (product.prix - product.prix_achat) * product.quantite;
+                                            const benefice = product.totalBenefice || 0;
                                             return (
                                                 <tr key={index} className="border-b border-gray-50 hover:bg-indigo-50/30 transition-colors">
                                                     <td className="py-4 px-3 text-gray-900 font-bold">{product.nom}</td>

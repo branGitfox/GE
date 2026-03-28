@@ -228,7 +228,7 @@ const ProduitForm = ({
             <div>
               <label className={labelCls}><FaDollarSign className="inline mr-1 text-violet-400" /> Prix Vente ({formData.nom_unite_gros || 'Gros'})</label>
               <input type="number" name="prix_carton" value={formData.prix_carton || ''} onChange={handleChange}
-                min="0" step="1" required className={inputCls} />
+                min="0" step="1000" required className={inputCls} />
             </div>
 
             {/* Prix vente Détail */}
@@ -236,7 +236,7 @@ const ProduitForm = ({
               <div>
                 <label className={labelCls}><FaDollarSign className="inline mr-1 text-violet-400" /> Prix Vente ({formData.unité || 'Détail'})</label>
                 <input type="number" name="prix_piece" value={formData.prix_piece || ''} onChange={handleChange}
-                  min="0" step="1" required={hasDetail} className={inputCls} />
+                  min="0" step="1000" required={hasDetail} className={inputCls} />
               </div>
             )}
 
@@ -321,14 +321,14 @@ const ProduitForm = ({
               <div>
                 <label className="text-xs text-gray-500 mb-1 block">{formData.nom_unite_gros || 'Gros'}</label>
                 <input type="number" name="prix_achat" value={formData.prix_achat || ''} onChange={handleChange}
-                  min="0" step="1" required
+                  min="0" step="1000" required
                   className="w-full px-3 py-2 rounded-lg border border-amber-200 bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 text-sm" />
               </div>
               {hasDetail && (
                 <div>
                   <label className="text-xs text-gray-500 mb-1 block">{formData.unité || 'Détail'} (optionnel)</label>
                   <input type="number" name="prix_achat_piece" value={formData.prix_achat_piece || ''} onChange={handleChange}
-                    min="0" step="1" placeholder="Calculé auto si vide"
+                    min="0" step="1000" placeholder="Calculé auto si vide"
                     className="w-full px-3 py-2 rounded-lg border border-amber-200 bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 text-sm" />
                 </div>
               )}

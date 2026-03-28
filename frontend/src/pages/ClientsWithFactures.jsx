@@ -741,7 +741,7 @@ const ClientsWithFactures = () => {
               <div className="mb-6">
                 <label className="block text-sm font-medium text-gray-700 mb-2">Montant du versement (Fmg)</label>
                 <input
-                  type="number" step="1"
+                  type="number" step="1000"
                   value={paymentAmount}
                   onChange={(e) => setPaymentAmount(e.target.value)}
                   placeholder="0 Fmg"
@@ -758,7 +758,7 @@ const ClientsWithFactures = () => {
               <div className="mb-6">
                 <label className="block text-sm font-medium text-gray-700 mb-2 font-bold text-orange-600">Remise exceptionnelle (Fmg)</label>
                 <input
-                  type="number" step="1"
+                  type="number" step="1000"
                   value={remiseAmount}
                   onChange={(e) => setRemiseAmount(e.target.value)}
                   placeholder="0 Fmg"

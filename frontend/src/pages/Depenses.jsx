@@ -308,7 +308,7 @@ const Depenses = () => {
   };
 
   const formatStock = (totalGros, ratio, grosUnite, detailUnite) => {
-    if (!ratio || ratio <= 1) return `${parseFloat(totalGros).toFixed(2)} ${grosUnite}`;
+    if (!ratio || ratio <= 1) return `${parseFloat(totalGros).toLocaleString('fr-FR')} ${grosUnite}`;
     const totalInPieces = Math.round(totalGros * ratio);
     const cartons = Math.floor(totalInPieces / ratio);
     const pieces = totalInPieces % ratio;
@@ -682,7 +682,7 @@ const Depenses = () => {
                   <div className="space-y-2">
                     <label className="block text-[11px] font-black text-gray-400 uppercase tracking-widest ml-1">Prix d'Achat ({formData.unite})</label>
                     <input
-                      type="number" step="1"
+                      type="number" step="1000"
                       name="prix_achat"
                       value={formData.prix_achat}
                       onChange={handleInputChange}
@@ -705,7 +705,7 @@ const Depenses = () => {
                 {/* Entrepot & Recap */}
                 <div className="bg-gray-50 rounded-2xl p-6 border border-gray-100 flex flex-col gap-4">
                   <div className="space-y-2">
-                    <label className="block text-[11px] font-black text-gray-400 uppercase tracking-widest ml-1">Entrepôt</label>
+                    <label className="block text-[11px] font-black text-gray-400 uppercase tracking-widest ml-1">Entrepôt / Magasin</label>
                     <SearchSelect
                       value={formData.entrepot_id || ''}
                       onChange={(value) => setFormData({ ...formData, entrepot_id: value })}
@@ -774,7 +774,7 @@ const Depenses = () => {
                     <th className="sticky top-0 z-10 bg-orange-50/50 p-5 text-[11px] font-black text-gray-400 uppercase tracking-widest">Date</th>
                     <th className="sticky top-0 z-10 bg-orange-50/50 p-5 text-[11px] font-black text-gray-400 uppercase tracking-widest">Produit</th>
                     <th className="sticky top-0 z-10 bg-orange-50/50 p-5 text-[11px] font-black text-gray-400 uppercase tracking-widest">Fournisseur(s)</th>
-                    <th className="sticky top-0 z-10 bg-orange-50/50 p-5 text-[11px] font-black text-gray-400 uppercase tracking-widest">Entrepôt</th>
+                    <th className="sticky top-0 z-10 bg-orange-50/50 p-5 text-[11px] font-black text-gray-400 uppercase tracking-widest">Entrepôt / Magasin</th>
                     <th className="sticky top-0 z-10 bg-orange-50/50 p-5 text-[11px] font-black text-gray-400 uppercase tracking-widest text-right">Quantité</th>
                     <th className="sticky top-0 z-10 bg-orange-50/50 p-5 text-[11px] font-black text-gray-400 uppercase tracking-widest text-right">P.U Achat</th>
                     <th className="sticky top-0 z-10 bg-orange-50/50 p-5 text-[11px] font-black text-gray-400 uppercase tracking-widest text-right">Coût Total</th>
@@ -799,7 +799,7 @@ const Depenses = () => {
                         <td className="p-5 text-xs font-bold text-gray-600">
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <FaTruck className="text-orange-400 opacity-50 shrink-0" />
-                            {produit.fournisseurs_list ? produit.fournisseurs_list : (produit.fournisseur_nom || '—')}
+                            {produit.fournisseur_nom || '—'}
                           </div>
                         </td>
                         <td className="p-5 text-xs font-bold text-gray-500 italic">
@@ -909,7 +909,7 @@ const Depenses = () => {
                         Montant (Ar) <span className="text-red-500">*</span>
                       </label>
                       <input
-                        type="number" step="1"
+                        type="number" step="1000"
                         name="montant"
                         value={formData.montant}
                         onChange={handleInputChange}
@@ -923,12 +923,12 @@ const Depenses = () => {
                         Prix d'achat unitaire ({formData.unite}) <span className="text-red-500">*</span>
                       </label>
                       <input
-                        type="number" step="1"
+                        type="number" step="1000"
                         name="prix_achat"
                         value={formData.prix_achat}
                         onChange={handleInputChange}
                         className="w-full bg-gray-50 border-0 border-b-2 border-gray-100 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-0 focus:border-indigo-500/50 focus:bg-white transition-all shadow-sm font-bold text-emerald-600"
-                        placeholder="0.00"
+                        placeholder="0"
                         required
                       />
                     </div>
@@ -1055,7 +1055,7 @@ const Depenses = () => {
                         Prix d'achat unitaire (Détail)
                       </label>
                       <input
-                        type="number" step="1"
+                        type="number" step="1000"
                         name="prix_achat_piece"
                         value={formData.prix_achat_piece}
                         onChange={handleInputChange}

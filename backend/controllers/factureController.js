@@ -447,20 +447,48 @@ exports.getSoldProducts = async (req, res) => {
               const typeVente = article.type_vente || 'piece';
               const productKey = `${article.produit_id || article.nom}_${typeVente}`;
 
+              const qte = parseFloat(article.quantite) || 0;
+              const prixVente = parseFloat(article.prix) || 0;
+              const revenue = qte * prixVente;
+              
+              // Determine historical cost if available
+              let articleCost = 0;
+              let hasHistoricalCost = false;
+              if (typeVente === 'carton' && article.prix_achat !== undefined) {
+                 articleCost = parseFloat(article.prix_achat) || 0;
+                 hasHistoricalCost = true;
+              } else if (typeVente === 'piece' && article.prix_achat_piece !== undefined) {
+                 articleCost = parseFloat(article.prix_achat_piece) || 0;
+                 hasHistoricalCost = true;
+              } else if (typeVente === 'piece' && article.prix_achat !== undefined && article.pieces_par_carton) {
+                 articleCost = (parseFloat(article.prix_achat) || 0) / (parseFloat(article.pieces_par_carton) || 1);
+                 hasHistoricalCost = true;
+              }
+
+              const beneficeParts = hasHistoricalCost ? revenue - (qte * articleCost) : 0;
+              const qteNeedsFallback = hasHistoricalCost ? 0 : qte;
+              const revenueNeedsFallback = hasHistoricalCost ? 0 : revenue;
+
               if (soldProductsMap.has(productKey)) {
                 const existing = soldProductsMap.get(productKey);
-                existing.quantite += parseFloat(article.quantite) || 0;
-                existing.totalRevenue += (parseFloat(article.quantite) || 0) * (parseFloat(article.prix) || 0);
+                existing.quantite += qte;
+                existing.totalRevenue += revenue;
+                existing.totalBenefice += beneficeParts;
+                existing.qteNeedsFallback += qteNeedsFallback;
+                existing.revenueNeedsFallback += revenueNeedsFallback;
               } else {
                 soldProductsMap.set(productKey, {
                   nom: article.nom,
                   produit_id: article.produit_id || null,
-                  quantite: parseFloat(article.quantite) || 0,
-                  prix: parseFloat(article.prix) || 0,
+                  quantite: qte,
+                  prix: prixVente, // just keeping first seen for display
+                  prix_achat: articleCost, // just keeping first seen
                   type_vente: typeVente,
                   unité: typeVente, // Will be resolved to real name below
-                  totalRevenue: (parseFloat(article.quantite) || 0) * (parseFloat(article.prix) || 0),
-                  prix_achat: 0 // Will be filled below
+                  totalRevenue: revenue,
+                  totalBenefice: beneficeParts,
+                  qteNeedsFallback: qteNeedsFallback,
+                  revenueNeedsFallback: revenueNeedsFallback
                 });
               }
             });
@@ -472,8 +500,7 @@ exports.getSoldProducts = async (req, res) => {
 
       // Convert map to sorted array
       const soldProducts = Array.from(soldProductsMap.values())
-        .sort((a, b) => b.quantite - a.quantite)
-        .slice(0, 10); // Top 10 sold products
+        .sort((a, b) => b.quantite - a.quantite);
 
       // Fetch prix_achat + real unit names from produits table
       const productIds = [...new Set(soldProducts.map(p => p.produit_id).filter(Boolean))];
@@ -493,15 +520,20 @@ exports.getSoldProducts = async (req, res) => {
             const isCarton = sp.type_vente === 'carton';
             const piecesParCarton = parseFloat(prod.pieces_par_carton) || 1;
 
-            // Adjust prix_achat for Detail sales
-            sp.prix_achat = isCarton
-              ? (parseFloat(prod.prix_achat) || 0)
-              : (parseFloat(prod.prix_achat_piece) > 0 ? parseFloat(prod.prix_achat_piece) : ((parseFloat(prod.prix_achat) || 0) / piecesParCarton));
-
             // Resolve real unit name: carton → nom_unite_gros, else → unité (detail)
             sp.unité = isCarton
               ? (prod.nom_unite_gros || 'Gros')
               : (prod['unité'] || 'Pièce');
+
+            // Fallback cost calculation for old invoices
+            if (sp.qteNeedsFallback > 0) {
+               const fallbackPrixAchat = isCarton
+                 ? (parseFloat(prod.prix_achat) || 0)
+                 : (parseFloat(prod.prix_achat_piece) > 0 ? parseFloat(prod.prix_achat_piece) : ((parseFloat(prod.prix_achat) || 0) / piecesParCarton));
+               
+               sp.totalBenefice += sp.revenueNeedsFallback - (sp.qteNeedsFallback * fallbackPrixAchat);
+               if (sp.prix_achat === 0) sp.prix_achat = fallbackPrixAchat;
+            }
           }
         });
         res.status(200).json(soldProducts);

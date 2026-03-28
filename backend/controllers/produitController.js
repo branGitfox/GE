@@ -83,25 +83,34 @@ exports.createProduit = (req, res) => {
                     if (!importSourceId && quantiteAjouteePieces !== 0 && !isNaN(quantiteAjouteePieces)) {
                         const { historique_achat } = req.body;
 
-                        let histQuantite, histPrix, histUnite;
                         if (historique_achat) {
-                            histQuantite = historique_achat.quantite;
-                            histPrix = historique_achat.prix_achat;
-                            histUnite = historique_achat.unite;
+                            const histQuantite = historique_achat.quantite;
+                            const histPrix = historique_achat.prix_achat;
+                            const histUnite = historique_achat.unite;
+                            db.query(
+                                'INSERT INTO produit_achat (nom, description, quantite, prix_achat, prix_vente, unite, category_id, produit_id, fournisseur_id, entrepot_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                                [nom, 'Approvisionnement', histQuantite, histPrix, prix_carton || existingProduit.prix_carton || 0, histUnite, safeCategoryId, existingProduit.id, safeFournisseurId, req.body.entrepot_id || null],
+                                (errHist) => { if (errHist) console.error("Erreur enregistrement achat approvisionnement:", errHist); }
+                            );
                         } else {
                             const ratio = parseFloat(pieces_par_carton || existingProduit.pieces_par_carton) || 1;
-                            histQuantite = quantiteAjouteePieces / ratio;
-                            histPrix = prix_achat || existingProduit.prix_achat || 0;
-                            histUnite = (nom_unite_gros || existingProduit.nom_unite_gros || 'Gros').trim();
-                        }
+                            const dCartons = Math.floor(quantiteAjouteePieces / ratio);
+                            const dPieces = quantiteAjouteePieces % ratio;
 
-                        db.query(
-                            'INSERT INTO produit_achat (nom, description, quantite, prix_achat, prix_vente, unite, category_id, produit_id, fournisseur_id, entrepot_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                            [nom, 'Approvisionnement', histQuantite, histPrix, prix_carton || existingProduit.prix_carton || 0, histUnite, safeCategoryId, existingProduit.id, safeFournisseurId, req.body.entrepot_id || null],
-                            (errHist) => {
-                                if (errHist) console.error("Erreur enregistrement achat approvisionnement:", errHist);
+                            if (dCartons > 0 && (prix_carton || existingProduit.prix_carton)) {
+                                db.query(
+                                    'INSERT INTO produit_achat (nom, description, quantite, prix_achat, prix_vente, unite, category_id, produit_id, fournisseur_id, entrepot_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                                    [nom, 'Approvisionnement', dCartons, prix_achat || existingProduit.prix_achat || 0, prix_carton || existingProduit.prix_carton || 0, (nom_unite_gros || existingProduit.nom_unite_gros || 'Gros').trim(), safeCategoryId, existingProduit.id, safeFournisseurId, req.body.entrepot_id || null]
+                                );
                             }
-                        );
+                            if (dPieces > 0.001) {
+                                const finalPrixAchatPiece = parseFloat(prix_achat_piece) > 0 ? prix_achat_piece : (existingProduit.prix_achat_piece > 0 ? existingProduit.prix_achat_piece : ((prix_achat || existingProduit.prix_achat || 0) / ratio));
+                                db.query(
+                                    'INSERT INTO produit_achat (nom, description, quantite, prix_achat, prix_vente, unite, category_id, produit_id, fournisseur_id, entrepot_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                                    [nom, 'Approvisionnement', dPieces, finalPrixAchatPiece, prix_piece || existingProduit.prix_piece || 0, (unité || existingProduit.unité || 'Détail').trim(), safeCategoryId, existingProduit.id, safeFournisseurId, req.body.entrepot_id || null]
+                                );
+                            }
+                        }
                     } else if (importSourceId) {
                         // Lier spécifiquement l'achat source si c'est un import
                         db.query('UPDATE produit_achat SET produit_id = ? WHERE id = ?', [existingProduit.id, importSourceId]);
@@ -157,15 +166,22 @@ exports.createProduit = (req, res) => {
                 const quantiteInitialePieces = parseFloat(quantite);
                 if (!importSourceId && quantiteInitialePieces > 0) {
                     const ratio = parseFloat(pieces_par_carton) || 1;
-                    const quantiteGros = quantiteInitialePieces / ratio;
-                    const targetUnite = (nom_unite_gros || 'Gros').trim();
-                    db.query(
-                        'INSERT INTO produit_achat (nom, description, quantite, prix_achat, prix_vente, unite, category_id, produit_id, fournisseur_id, entrepot_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                        [nom, 'Stock Initial', quantiteGros, prix_achat || 0, prix_carton || prix || 0, targetUnite, safeCategoryId, newId, safeFournisseurId, req.body.entrepot_id || null],
-                        (errHist) => {
-                            if (errHist) console.error("Erreur enregistrement stock initial:", errHist);
-                        }
-                    );
+                    const dCartons = Math.floor(quantiteInitialePieces / ratio);
+                    const dPieces = quantiteInitialePieces % ratio;
+
+                    if (dCartons > 0 && (prix_carton || prix)) {
+                        db.query(
+                            'INSERT INTO produit_achat (nom, description, quantite, prix_achat, prix_vente, unite, category_id, produit_id, fournisseur_id, entrepot_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                            [nom, 'Stock Initial', dCartons, prix_achat || 0, prix_carton || prix || 0, (nom_unite_gros || 'Gros').trim(), safeCategoryId, newId, safeFournisseurId, req.body.entrepot_id || null]
+                        );
+                    }
+                    if (dPieces > 0.001) {
+                        const finalPrixAchatPiece = parseFloat(prix_achat_piece) > 0 ? prix_achat_piece : ((prix_achat || 0) / ratio);
+                        db.query(
+                            'INSERT INTO produit_achat (nom, description, quantite, prix_achat, prix_vente, unite, category_id, produit_id, fournisseur_id, entrepot_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                            [nom, 'Stock Initial', dPieces, finalPrixAchatPiece, prix_piece || 0, (unité || 'Détail').trim(), safeCategoryId, newId, safeFournisseurId, req.body.entrepot_id || null]
+                        );
+                    }
                 } else if (importSourceId) {
                     db.query('UPDATE produit_achat SET produit_id = ? WHERE id = ?', [newId, importSourceId]);
                 }

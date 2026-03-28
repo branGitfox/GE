@@ -306,8 +306,8 @@ const Settings = () => {
                         <FiAlertCircle className="mr-2" /> Réinitialisation Complète
                     </h3>
                     <p className="text-sm text-red-700">
-                        Cette action supprimera <strong>tous les produits, factures, clients, fournisseurs et dépenses</strong>.
-                        Les comptes utilisateurs ne seront pas supprimés. Tous les numéros (IDs) repartiront de 1.
+                        Cette action supprimera <strong>TOUTES les données</strong> de l'application (produits, factures, clients, fournisseurs, dépenses, entrepôts, logs, etc.).
+                        Seuls les comptes utilisateurs seront conservés. Tous les numéros (IDs) repartiront de 1.
                     </p>
                 </div>
 
@@ -329,7 +329,7 @@ const Settings = () => {
                 onClose={() => setIsResetConfirmModalOpen(false)}
                 onConfirm={confirmReset}
                 title="⚠️ Réinitialisation Complète"
-                message="Êtes-vous ABSOLUMENT SUR ? Cette action supprimera TOUTES les données de l'application (Produits, Factures, Clients, Fournisseurs, Dépenses). Cette action est IRRÉVERSIBLE et tous les IDs reviendront à 1."
+                message="Êtes-vous ABSOLUMENT SUR ? Cette action supprimera TOUTES les données de l'application (Produits, Factures, Clients, Dépenses, Entrepot, etc.). Seuls les comptes utilisateurs seront conservés. Cette action est IRRÉVERSIBLE et tous les IDs reviendront à 1."
                 isLoading={resetLoading}
             />
         </div>

@@ -72,7 +72,7 @@ const ClientDetails = ({
           <div className="bg-white p-3 rounded shadow">
             <h4 className="text-sm text-gray-500">Total dépensé</h4>
             <p className="text-xl font-bold flex items-center justify-center">
-              {totalDepense.toFixed(2)} FMG
+              {totalDepense.toLocaleString('fr-FR')} FMG
             </p>
           </div>
         </div>
@@ -103,7 +103,7 @@ const ClientDetails = ({
                     {new Date(facture.date_facture).toLocaleDateString('fr-FR')}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap font-medium">
-                    {parseFloat(facture.prix_total).toFixed(2)} FMG
+                    {parseFloat(facture.prix_total).toLocaleString('fr-FR')} FMG
                   </td>
                 </tr>
               ))}

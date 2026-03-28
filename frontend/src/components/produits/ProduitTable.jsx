@@ -161,7 +161,7 @@ const ProduitTable = ({
                             {mode[produit.id] === 'add' && (
                               <div className="flex items-center gap-2 mb-2">
                                 <span className="text-[10px] text-emerald-600 font-semibold">Prix achat:</span>
-                                <input type="number" step="1" min="0"
+                                <input type="number" step="1000" min="0"
                                   value={prixAchatInput[produit.id] ?? 0}
                                   onChange={e => setPrixAchatInput(p => ({ ...p, [produit.id]: e.target.value }))}
                                   className="w-24 px-2 py-1 border border-gray-200 rounded-lg text-xs"

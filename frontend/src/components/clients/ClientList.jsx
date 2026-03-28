@@ -54,7 +54,8 @@ const ClientList = ({
   const formatAmount = (amount) => {
     // Convertir en nombre si ce n'est pas déjà le cas
     const num = typeof amount === 'number' ? amount : parseFloat(amount) || 0;
-    return num.toFixed(2) + ' FMG';
+    if (num === 0) return '0 FMG';
+    return num.toLocaleString('fr-FR') + ' FMG';
   };
 
   // Tri des clients

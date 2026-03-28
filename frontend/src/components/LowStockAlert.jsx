@@ -91,7 +91,7 @@ const LowStockAlert = () => {
                                         <span className="bg-yellow-200 text-yellow-800 text-xs font-bold px-2 py-1 rounded-full">
                                             {product.pieces_par_carton && product.pieces_par_carton > 1
                                                 ? ((product.quantite / product.pieces_par_carton) >= 1
-                                                    ? `${(product.quantite / product.pieces_par_carton).toFixed(2)} carton(s)`
+                                                    ? `${(product.quantite / product.pieces_par_carton).toLocaleString('fr-FR')} carton(s)`
                                                     : `${product.quantite} pièce(s)`
                                                 )
                                                 : `${product.quantite} pièce(s)`

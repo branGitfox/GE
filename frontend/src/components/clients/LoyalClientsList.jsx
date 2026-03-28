@@ -135,10 +135,10 @@ const LoyalClientsList = ({ clients, onClose }) => {
                                         {client.nombre_factures}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                        {client.total_depense ? client.total_depense.toFixed(2) + ' FMG' : '0 FMG'}
+                                        {client.total_depense ? client.total_depense.toLocaleString('fr-FR') + ' FMG' : '0 FMG'}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                        {client.facture_max ? client.facture_max.toFixed(2) + ' FMG' : '-'}
+                                        {client.facture_max ? client.facture_max.toLocaleString('fr-FR') + ' FMG' : '-'}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <span className={`px-2 py-1 rounded-full text-xs font-semibold ${loyalty.color}`}>

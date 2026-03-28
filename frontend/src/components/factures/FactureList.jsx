@@ -7,7 +7,8 @@ import Pagination from './Pagination';
 // Fonction utilitaire pour formater les montants
 const formatCurrency = (value) => {
   const num = Number(value || 0);
-  return isNaN(num) ? '0.00' : num.toFixed(2);
+  if (num === 0) return '0';
+  return num.toLocaleString('fr-FR');
 };
 
 const FactureList = ({

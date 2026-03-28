@@ -203,6 +203,8 @@ const FactureForm = ({
                   handleChangeArticle({ target: { name: "prix", value: defaultType === 'carton' ? selectedProduit.prix_carton : selectedProduit.prix_piece } });
                   handleChangeArticle({ target: { name: "prix_carton", value: selectedProduit.prix_carton } });
                   handleChangeArticle({ target: { name: "prix_piece", value: selectedProduit.prix_piece } });
+                  handleChangeArticle({ target: { name: "prix_achat", value: selectedProduit.prix_achat } });
+                  handleChangeArticle({ target: { name: "prix_achat_piece", value: selectedProduit.prix_achat_piece } });
                   handleChangeArticle({ target: { name: "pieces_par_carton", value: selectedProduit.pieces_par_carton } });
                   handleChangeArticle({ target: { name: "nom_unite_gros", value: selectedProduit.nom_unite_gros } });
                   handleChangeArticle({ target: { name: "unité_détail", value: selectedProduit.unité } });
@@ -216,7 +218,7 @@ const FactureForm = ({
                   : `${produit.quantite} ${produit.nom_unite_gros || 'Détail'}`;
                 return {
                   value: produit.id,
-                  label: `${produit.nom} - ${produit.nom_unite_gros || 'Gros'}:${produit.prix_carton} FMG / ${produit.unité || 'Détail'}:${produit.prix_piece} FMG (Stock: ${stockStr})`
+                  label: `${produit.nom} - ${produit.nom_unite_gros || 'Gros'}:${new Intl.NumberFormat('fr-FR').format(produit.prix_carton)} FMG / ${produit.unité || 'Détail'}:${new Intl.NumberFormat('fr-FR').format(produit.prix_piece)} FMG (Stock: ${stockStr})`
                 };
               })}
               placeholder="Rechercher un produit..."
@@ -273,7 +275,7 @@ const FactureForm = ({
               type="number"
               name="prix"
               min="0"
-              step="1"
+              step="1000"
               value={nouvelArticle.prix}
               onChange={handleChangeArticle}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition bg-gray-100"
@@ -314,8 +316,8 @@ const FactureForm = ({
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 text-center">{article.quantite}</td>
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 text-center capitalize">{article.type_vente === 'carton' ? 'En gros' : 'En détail'}</td>
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 text-center">{article.unité}</td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 text-center">{article.prix} FMG</td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 text-center">{article.quantite * article.prix} FMG</td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 text-center">{new Intl.NumberFormat('fr-FR').format(article.prix)} FMG</td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 text-center">{new Intl.NumberFormat('fr-FR').format(article.quantite * article.prix)} FMG</td>
                       <td className="px-4 py-3 whitespace-nowrap text-right text-sm font-medium">
                         <button
                           onClick={() => handleSupprimerArticle(index)}
@@ -332,7 +334,7 @@ const FactureForm = ({
             </div>
             <div className="mt-4 flex flex-col items-end border-t pt-4">
               <div className="text-sm text-gray-600 mb-1">
-                Sous-total: <span className="font-medium">{nouvelleFacture.liste_articles.reduce((acc, art) => acc + (art.quantite * art.prix), 0)} FMG</span>
+                Sous-total: <span className="font-medium">{new Intl.NumberFormat('fr-FR').format(nouvelleFacture.liste_articles.reduce((acc, art) => acc + (art.quantite * art.prix), 0))} FMG</span>
               </div>
               <div className="text-sm text-gray-600 mb-1 flex items-center">
                 Remise:
@@ -340,16 +342,16 @@ const FactureForm = ({
                   type="number"
                   name="remise"
                   min="0"
-                  step="1"
+                  step="1000"
                   value={nouvelleFacture.remise}
                   onChange={handleChange}
                   className="ml-2 w-32 px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 transition text-right"
-                  placeholder="0.00"
+                  placeholder="0"
                 />
                 <span className="ml-1">FMG</span>
               </div>
               <div className="text-lg font-bold text-gray-800 mt-2">
-                Total Final: <span className="text-blue-600">{Math.max(0, nouvelleFacture.liste_articles.reduce((acc, art) => acc + (art.quantite * art.prix), 0) - (parseFloat(nouvelleFacture.remise) || 0))} FMG</span>
+                Total Final: <span className="text-blue-600">{new Intl.NumberFormat('fr-FR').format(Math.max(0, nouvelleFacture.liste_articles.reduce((acc, art) => acc + (art.quantite * art.prix), 0) - (parseFloat(nouvelleFacture.remise) || 0)))} FMG</span>
               </div>
             </div>
           </div>
@@ -364,7 +366,7 @@ const FactureForm = ({
               type="number"
               name="paiement"
               min="0"
-              step="1"
+              step="1000"
               value={nouvelleFacture.paiement}
               onChange={handleChange}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"

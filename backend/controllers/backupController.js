@@ -222,68 +222,83 @@ exports.importDatabase = async (req, res) => {
 
 // Database reset: Clear all tables except users and reset auto-increment to 1
 exports.resetDatabase = async (req, res) => {
-    const tablesToTruncate = [
-        'depenses',
-        'factures',
-        'produit_achat',
-        'produits',
-        'categories',
-        'fournisseurs',
-        'clients',
-    ];
-
     try {
-        // Disable foreign key checks to allow truncation
-        db.query('SET FOREIGN_KEY_CHECKS = 0', (err) => {
-            if (err) throw err;
+        // 1. Get all tables from the database
+        db.query('SHOW TABLES', (err, results) => {
+            if (err) {
+                console.error('Error fetching tables:', err);
+                return res.status(500).json({
+                    message: 'Erreur lors de la récupération des tables',
+                    error: err.message
+                });
+            }
 
-            let truncatedCount = 0;
-            let errors = [];
+            // Extract table names
+            const allTables = results.map(row => Object.values(row)[0]);
+            // Filter out 'users' table
+            const tablesToTruncate = allTables.filter(table => table.toLowerCase() !== 'users');
 
-            const truncateNext = (index) => {
-                if (index >= tablesToTruncate.length) {
-                    // Re-enable foreign key checks
-                    db.query('SET FOREIGN_KEY_CHECKS = 1', async (err) => {
-                        if (err) {
-                            console.error('Error enabling FK checks:', err);
-                        }
+            if (tablesToTruncate.length === 0) {
+                return res.status(200).json({
+                    message: 'Aucune table à réinitialiser (hors users).'
+                });
+            }
 
-                        if (errors.length > 0) {
-                            return res.status(500).json({
-                                message: 'Réinitialisation terminée avec des erreurs',
-                                errors
-                            });
-                        }
-
-                        await logAction(req.user?.id, 'reset', 'system', null, null, null, `Réinitialisation complète de la base de données`);
-
-                        return res.status(200).json({
-                            message: 'Base de données réinitialisée avec succès ! Tous les IDs sont revenus à 1.'
-                        });
+            // 2. Disable foreign key checks to allow truncation
+            db.query('SET FOREIGN_KEY_CHECKS = 0', (err) => {
+                if (err) {
+                    console.error('Error disabling FK checks:', err);
+                    return res.status(500).json({
+                        message: 'Erreur lors de la désactivation des contraintes',
+                        error: err.message
                     });
-                    return;
                 }
 
-                const table = tablesToTruncate[index];
-                db.query(`TRUNCATE TABLE \`${table}\``, (err) => {
-                    if (err) {
-                        console.error(`Error truncating ${table}:`, err);
-                        errors.push(`Erreur sur la table ${table}: ${err.message}`);
-                    } else {
-                        truncatedCount++;
-                    }
-                    truncateNext(index + 1);
-                });
-            };
+                let processedCount = 0;
+                let errors = [];
 
-            truncateNext(0);
+                const truncateNext = (index) => {
+                    if (index >= tablesToTruncate.length) {
+                        // 3. Re-enable foreign key checks
+                        db.query('SET FOREIGN_KEY_CHECKS = 1', async (err) => {
+                            if (err) console.error('Error enabling FK checks:', err);
+
+                            if (errors.length > 0) {
+                                return res.status(500).json({
+                                    message: 'Réinitialisation terminée avec des erreurs',
+                                    errors
+                                });
+                            }
+
+                            await logAction(req.user?.id, 'reset', 'system', null, null, null, `Réinitialisation complète de la base de données (hors utilisateurs)`);
+
+                            return res.status(200).json({
+                                message: 'Base de données réinitialisée avec succès ! Les données ont été effacées et tous les IDs sont revenus à 1.'
+                            });
+                        });
+                        return;
+                    }
+
+                    const table = tablesToTruncate[index];
+                    db.query(`TRUNCATE TABLE \`${table}\``, (err) => {
+                        if (err) {
+                            console.error(`Error truncating ${table}:`, err);
+                            errors.push(`Erreur sur la table ${table}: ${err.message}`);
+                        }
+                        truncateNext(index + 1);
+                    });
+                };
+
+                // Start truncating
+                truncateNext(0);
+            });
         });
     } catch (error) {
         console.error('Reset error:', error);
-        // Ensure FK checks are re-enabled even on crash
+        // Ensure FK checks are re-enabled even on crash if possible
         db.query('SET FOREIGN_KEY_CHECKS = 1');
         res.status(500).json({
-            message: 'Erreur lors de la réinitialisation de la base de données',
+            message: 'Erreur critique lors de la réinitialisation',
             error: error.message
         });
     }
