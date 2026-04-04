@@ -60,16 +60,30 @@ exports.createFacture = async (req, res) => {
         }
       }
 
+      // Helper to format stock message
+      const formatStock = (qty, ratio, grosName, detailName) => {
+        const cartons = Math.floor(qty / (ratio || 1));
+        const pieces = (qty % (ratio || 1)).toFixed(3).replace(/\.?0+$/, "");
+        if (ratio > 1) {
+          let str = `${cartons} ${grosName || 'Gros'}`;
+          if (parseFloat(pieces) > 0) str += ` et ${pieces} ${detailName || 'Détail'}`;
+          return str;
+        }
+        return `${qty} ${detailName || 'Unité(s)'}`;
+      };
+
       for (const item of Object.values(aggregatedArticles)) {
-        const resP = await queryAsync("SELECT quantite, nom, pieces_par_carton FROM produits WHERE id = ?", [item.produit_id]);
+        const resP = await queryAsync("SELECT quantite, nom, pieces_par_carton, nom_unite_gros, unité FROM produits WHERE id = ?", [item.produit_id]);
         const produit = resP[0];
         if (!produit) throw new Error(`Produit ID ${item.produit_id} introuvable`);
 
         const multi = item.type_vente === 'carton' ? (produit.pieces_par_carton || 1) : 1;
-        const totalNeeded = item.quantite * multi; // Use aggregated quantity
+        const totalNeeded = parseFloat(item.quantite) * multi;
 
-        if (produit.quantite < totalNeeded) {
-          throw new Error(`Stock insuffisant pour ${produit.nom} (Dispo: ${produit.quantite}, Requis: ${totalNeeded})`);
+        if (parseFloat(produit.quantite) < totalNeeded) {
+          const dispoStr = formatStock(produit.quantite, produit.pieces_par_carton, produit.nom_unite_gros, produit.unité);
+          const requisStr = formatStock(totalNeeded, produit.pieces_par_carton, produit.nom_unite_gros, produit.unité);
+          throw new Error(`Stock insuffisant pour ${produit.nom} (Disponible: ${dispoStr}, Requis: ${requisStr})`);
         }
       }
     }
@@ -212,64 +226,102 @@ exports.updateFacture = async (req, res) => {
   res.status(403).json({ message: "La modification des factures est désactivée." });
 };
 
-
-
-
-
 exports.getAllFactures = async (req, res) => {
   try {
-    const query = `
-            SELECT 
-        f.*, 
-        u.nom, 
-        u.prenom,
-        CONCAT(u.nom, ' ', u.prenom) AS created_by_fullname,
-        COALESCE(c.nom, f.temp_client_nom) AS client_nom,
-        COALESCE(c.adresse, f.temp_client_adresse) AS client_adresse,
-        COALESCE(c.telephone, f.temp_client_telephone) AS client_telephone,
-        COALESCE(c.email, f.temp_client_email) AS client_email
+    const { startDate, endDate, status, search, page, limit = 10 } = req.query;
+    let query = `
+      SELECT f.*, 
+             COALESCE(c.nom, f.temp_client_nom) as client_nom,
+             c.email as client_email,
+             c.telephone as client_telephone,
+             c.adresse as client_adresse,
+             u.nom as created_by
       FROM factures f
-      LEFT JOIN users u ON f.created_by_id = u.id
       LEFT JOIN clients c ON f.client_id = c.id
-      ORDER BY f.date_facture DESC, f.id DESC
-
+      LEFT JOIN users u ON f.created_by_id = u.id
+      WHERE 1=1
     `;
+    const params = [];
 
-    db.query(query, (err, results) => {
-      if (err) throw err;
+    if (startDate && endDate) {
+      query += " AND f.date_facture BETWEEN ? AND ?";
+      params.push(startDate, endDate);
+    }
+    if (status && status !== 'all') {
+      if (status === 'paid') query += " AND f.paiement >= f.prix_total";
+      else if (status === 'partial') query += " AND f.paiement > 0 AND f.paiement < f.prix_total";
+      else if (status === 'unpaid') query += " AND (f.paiement <= 0 OR f.paiement IS NULL)";
+    }
+    if (search) {
+      query += " AND (f.numero_facture LIKE ? OR COALESCE(c.nom, f.temp_client_nom) LIKE ?)";
+      params.push(`%${search}%`, `%${search}%`);
+    }
 
-      const factures = results.map(facture => ({
-        ...facture,
-        created_by: facture.nom && facture.prenom
-          ? `${facture.nom} ${facture.prenom}`
-          : 'Utilisateur inconnu'
-      }));
+    query += " ORDER BY f.date_facture DESC, f.id DESC";
 
-      res.status(200).json(factures);
+    // Si pas de pagination demandée, on renvoie tout (pour compatibilité Factures2.jsx / Proformas.jsx)
+    if (!page) {
+      const [allFactures] = await db.promise().query(query, params);
+      return res.status(200).json(allFactures);
+    }
+
+    // Sinon, pagination specifique (pour le modal dashboard)
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+    
+    // Total count pour la pagination
+    const countQuery = `SELECT COUNT(*) as total FROM (${query}) as sub`;
+    const [countResult] = await db.promise().query(countQuery, params);
+    const totalCount = countResult[0].total;
+
+    // Total revenue pour le subset filtré
+    const revenueQuery = `SELECT SUM(prix_total) as totalRev FROM (${query}) as sub`;
+    const [revenueResult] = await db.promise().query(revenueQuery, params);
+    const totalRevenueSelected = revenueResult[0].totalRev || 0;
+
+    query += " LIMIT ? OFFSET ?";
+    params.push(parseInt(limit), offset);
+
+    const [factures] = await db.promise().query(query, params);
+
+    res.status(200).json({
+      factures,
+      totalCount,
+      totalPages: Math.ceil(totalCount / limit),
+      totalRevenueSelected
     });
   } catch (error) {
-    res.status(500).json({
-      message: "Erreur lors de la récupération des factures",
-      error: error.message
-    });
+    console.error("Error in getAllFactures:", error);
+    res.status(500).json({ message: "Erreur récupération factures", error: error.message });
   }
 };
 
 exports.getDashboardStats = async (req, res) => {
   try {
-    const { year: queryYear, startDate, endDate } = req.query;
-    console.log("getDashboardStats called with:", { queryYear, startDate, endDate });
+    const { year: queryYear, startDate, endDate, dayOffset, weekOffset, monthOffset, yearOffset } = req.query;
+    console.log("getDashboardStats called with:", { queryYear, startDate, endDate, dayOffset, weekOffset, monthOffset, yearOffset });
 
     const now = new Date();
     const currentYear = now.getFullYear();
     const selectedYear = queryYear ? parseInt(queryYear) : currentYear;
 
-    let query = "SELECT prix_total, date_facture, liste_articles, paiement, remise, date_paiement, dernier_paiement FROM factures WHERE (status IS NULL OR status = 'facture') AND (YEAR(date_facture) = ?)";
-    const queryParams = [selectedYear];
+    // Calculer les années nécessaires pour couvrir tous les offsets
+    const dOff = parseInt(dayOffset) || 0;
+    const wOff = parseInt(weekOffset) || 0;
+    const mOff = parseInt(monthOffset) || 0;
+    const yOff = parseInt(yearOffset) || 0;
 
-    // Si une plage est fournie pour une AUTRE année, on l'inclut aussi
+    const refDay = new Date(now); refDay.setDate(refDay.getDate() - dOff);
+    const refWeek = new Date(now); refWeek.setDate(refWeek.getDate() - (wOff * 7));
+    const refMonth = new Date(now); refMonth.setMonth(refMonth.getMonth() - mOff);
+    const refYear = new Date(now); refYear.setFullYear(refYear.getFullYear() - yOff);
+
+    const yearsNeeded = new Set([selectedYear, refDay.getFullYear(), refWeek.getFullYear(), refMonth.getFullYear(), refYear.getFullYear()]);
+    
+    let query = "SELECT prix_total, date_facture, liste_articles, paiement, remise, date_paiement, dernier_paiement FROM factures WHERE (status IS NULL OR status = 'facture') AND (YEAR(date_facture) IN (?))";
+    const queryParams = [Array.from(yearsNeeded)];
+
     if (startDate && endDate) {
-      query = "SELECT prix_total, date_facture, liste_articles, paiement, remise, date_paiement, dernier_paiement FROM factures WHERE (status IS NULL OR status = 'facture') AND (YEAR(date_facture) = ? OR date_facture BETWEEN ? AND ?)";
+      query = "SELECT prix_total, date_facture, liste_articles, paiement, remise, date_paiement, dernier_paiement FROM factures WHERE (status IS NULL OR status = 'facture') AND (YEAR(date_facture) IN (?) OR date_facture BETWEEN ? AND ?)";
       queryParams.push(startDate, endDate);
     }
 
@@ -297,16 +349,20 @@ exports.getDashboardStats = async (req, res) => {
       let paidWeek = 0;
       let paidMonth = 0;
 
-      const monthStr = String(now.getMonth() + 1).padStart(2, '0');
-      const dayStr = String(now.getDate()).padStart(2, '0');
-      const todayStr = `${currentYear}-${monthStr}-${dayStr}`;
+      const refDayDate = new Date(now);
+      refDayDate.setDate(refDayDate.getDate() - dOff);
+      const todayStr = refDayDate.toLocaleDateString('en-CA');
 
-      const startOfWeek = new Date(now);
-      const dayOfWeek = startOfWeek.getDay() || 7;
-      if (dayOfWeek !== 1) startOfWeek.setHours(-24 * (dayOfWeek - 1));
-      startOfWeek.setHours(0, 0, 0, 0);
+      const startOfRefWeek = new Date(now);
+      startOfRefWeek.setDate(startOfRefWeek.getDate() - (wOff * 7));
+      const dayOfWeek = startOfRefWeek.getDay() || 7;
+      if (dayOfWeek !== 1) startOfRefWeek.setHours(-24 * (dayOfWeek - 1));
+      startOfRefWeek.setHours(0, 0, 0, 0);
 
-      const currentMonthIndex = now.getMonth();
+      const refMonthDate = new Date(now);
+      refMonthDate.setMonth(refMonthDate.getMonth() - mOff);
+      const refMonthIndex = refMonthDate.getMonth();
+      const refMonthYear = refMonthDate.getFullYear();
 
       const rangeStartStr = startDate || null;
       const rangeEndStr = endDate || null;
@@ -329,9 +385,9 @@ exports.getDashboardStats = async (req, res) => {
 
         // Period Calculations
         if (dateStr === todayStr) revenueToday += montant;
-        if (dateFacture >= startOfWeek) revenueWeek += montant;
-        if (dateFacture.getMonth() === currentMonthIndex && dateFacture.getFullYear() === currentYear) revenueMonth += montant;
-        if (dateFacture.getFullYear() === currentYear) revenueYear += montant;
+        if (dateFacture >= startOfRefWeek && dateFacture < new Date(startOfRefWeek.getTime() + 7 * 24 * 60 * 60 * 1000)) revenueWeek += montant;
+        if (dateFacture.getMonth() === refMonthIndex && dateFacture.getFullYear() === refMonthYear) revenueMonth += montant;
+        if (dateFacture.getFullYear() === (currentYear - yOff)) revenueYear += montant;
         if (fYear === selectedYear) revenueSelectedYear += montant;
 
         // Custom Range Calculation
@@ -354,8 +410,8 @@ exports.getDashboardStats = async (req, res) => {
           const pmtDateStr = `${dpYear}-${dpMonth}-${dpDay}`;
 
           if (pmtDateStr === todayStr) paidToday += dernierVersement;
-          if (datePmt >= startOfWeek) paidWeek += dernierVersement;
-          if (datePmt.getMonth() === currentMonthIndex && datePmt.getFullYear() === currentYear) paidMonth += dernierVersement;
+          if (datePmt >= startOfRefWeek && datePmt < new Date(startOfRefWeek.getTime() + 7 * 24 * 60 * 60 * 1000)) paidWeek += dernierVersement;
+          if (datePmt.getMonth() === refMonthIndex && datePmt.getFullYear() === refMonthYear) paidMonth += dernierVersement;
         }
 
         // Products count
@@ -692,16 +748,29 @@ exports.convertProformaToFacture = async (req, res) => {
       }
     }
 
+    const formatStock = (qty, ratio, grosName, detailName) => {
+      const cartons = Math.floor(qty / (ratio || 1));
+      const pieces = (qty % (ratio || 1)).toFixed(3).replace(/\.?0+$/, "");
+      if (ratio > 1) {
+        let str = `${cartons} ${grosName || 'Gros'}`;
+        if (parseFloat(pieces) > 0) str += ` et ${pieces} ${detailName || 'Détail'}`;
+        return str;
+      }
+      return `${qty} ${detailName || 'Unité(s)'}`;
+    };
+
     for (const item of Object.values(aggregatedArticles)) {
-      const resP = await queryAsync("SELECT quantite, nom, pieces_par_carton FROM produits WHERE id = ?", [item.produit_id]);
+      const resP = await queryAsync("SELECT quantite, nom, pieces_par_carton, nom_unite_gros, unité FROM produits WHERE id = ?", [item.produit_id]);
       const produit = resP[0];
       if (!produit) throw new Error(`Produit ID ${item.produit_id} introuvable`);
 
       const multi = item.type_vente === 'carton' ? (produit.pieces_par_carton || 1) : 1;
-      const totalNeeded = item.quantite * multi;
+      const totalNeeded = parseFloat(item.quantite) * multi;
 
-      if (produit.quantite < totalNeeded) {
-        throw new Error(`Stock insuffisant pour ${produit.nom} (Dispo: ${produit.quantite}, Requis: ${totalNeeded})`);
+      if (parseFloat(produit.quantite) < totalNeeded) {
+        const dispoStr = formatStock(produit.quantite, produit.pieces_par_carton, produit.nom_unite_gros, produit.unité);
+        const requisStr = formatStock(totalNeeded, produit.pieces_par_carton, produit.nom_unite_gros, produit.unité);
+        throw new Error(`Stock insuffisant pour ${produit.nom} (Disponible: ${dispoStr}, Requis: ${requisStr})`);
       }
     }
 
@@ -885,5 +954,23 @@ exports.getTopSuppliers = async (req, res) => {
   } catch (error) {
     console.error("Error in getTopSuppliers:", error);
     res.status(500).json({ message: "Erreur top fournisseurs", error: error.message });
+  }
+};
+
+exports.getYearsWithData = async (req, res) => {
+  try {
+    const query = "SELECT DISTINCT YEAR(date_facture) as year FROM factures WHERE (status IS NULL OR status = 'facture') ORDER BY year DESC";
+    const [results] = await db.promise().query(query);
+    const years = results.map(r => r.year);
+    
+    // Si la table est vide, renvoyer au moins l'année actuelle
+    if (years.length === 0) {
+      years.push(new Date().getFullYear());
+    }
+    
+    res.status(200).json(years);
+  } catch (error) {
+    console.error("Error in getYearsWithData:", error);
+    res.status(500).json({ message: "Erreur récupération années", error: error.message });
   }
 };

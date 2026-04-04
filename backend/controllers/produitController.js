@@ -103,7 +103,7 @@ exports.createProduit = (req, res) => {
                                     [nom, 'Approvisionnement', dCartons, prix_achat || existingProduit.prix_achat || 0, prix_carton || existingProduit.prix_carton || 0, (nom_unite_gros || existingProduit.nom_unite_gros || 'Gros').trim(), safeCategoryId, existingProduit.id, safeFournisseurId, req.body.entrepot_id || null]
                                 );
                             }
-                            if (dPieces > 0.001) {
+                            if (dPieces > 0.0001) {
                                 const finalPrixAchatPiece = parseFloat(prix_achat_piece) > 0 ? prix_achat_piece : (existingProduit.prix_achat_piece > 0 ? existingProduit.prix_achat_piece : ((prix_achat || existingProduit.prix_achat || 0) / ratio));
                                 db.query(
                                     'INSERT INTO produit_achat (nom, description, quantite, prix_achat, prix_vente, unite, category_id, produit_id, fournisseur_id, entrepot_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
@@ -175,7 +175,7 @@ exports.createProduit = (req, res) => {
                             [nom, 'Stock Initial', dCartons, prix_achat || 0, prix_carton || prix || 0, (nom_unite_gros || 'Gros').trim(), safeCategoryId, newId, safeFournisseurId, req.body.entrepot_id || null]
                         );
                     }
-                    if (dPieces > 0.001) {
+                    if (dPieces > 0.0001) {
                         const finalPrixAchatPiece = parseFloat(prix_achat_piece) > 0 ? prix_achat_piece : ((prix_achat || 0) / ratio);
                         db.query(
                             'INSERT INTO produit_achat (nom, description, quantite, prix_achat, prix_vente, unite, category_id, produit_id, fournisseur_id, entrepot_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
@@ -316,7 +316,7 @@ exports.updateProduit = (req, res) => {
                         );
                     }
                     
-                    if (dPieces > 0.001) {
+                    if (dPieces > 0.0001) {
                         const mappedPrixAchatPiece = parseFloat(prix_achat_piece) > 0 ? prix_achat_piece : ((prix_achat || 0) / currentRatio);
                         db.query(
                             'INSERT INTO produit_achat (nom, description, quantite, prix_achat, prix_vente, unite, category_id, produit_id, fournisseur_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
@@ -479,17 +479,17 @@ exports.removeQuantite = async (req, res) => {
 
         if (parseFloat(produit.quantite) < quantiteARetirer) {
             const ratio = produit.pieces_par_carton || 1;
-            const dispoCartons = Math.floor(produit.quantite / ratio);
-            const dispoPieces = produit.quantite % ratio;
-            
-            let dispoStr = "";
-            if (ratio > 1) {
-                dispoStr = `${dispoCartons} ${produit.nom_unite_gros || 'carton'}(s)`;
-                if (dispoPieces > 0) dispoStr += ` et ${dispoPieces} ${produit.unité || 'pièce'}(s)`;
-            } else {
-                dispoStr = `${produit.quantite} ${produit.nom_unite_gros || 'unité(s)'}`;
-            }
-
+            const formatStock = (qty, ratio, grosName, detailName) => {
+                const cartons = Math.floor(qty / (ratio || 1));
+                const pieces = (qty % (ratio || 1)).toFixed(3).replace(/\.?0+$/, "");
+                if (ratio > 1) {
+                    let str = `${cartons} ${grosName || 'carton'}(s)`;
+                    if (parseFloat(pieces) > 0) str += ` et ${pieces} ${detailName || 'pièce'}(s)`;
+                    return str;
+                }
+                return `${qty} ${grosName || 'unité(s)'}`;
+            };
+            const dispoStr = formatStock(produit.quantite, ratio, produit.nom_unite_gros, produit.unité);
             throw new Error(`Stock insuffisant pour ${produit.nom} (Disponible: ${dispoStr})`);
         }
 

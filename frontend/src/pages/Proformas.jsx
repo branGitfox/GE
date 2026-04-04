@@ -75,7 +75,7 @@ const Proformas = () => {
         axios.get(`${API_URL}/api/produits`)
       ]);
 
-      const facturesData = facturesRes.data;
+      const facturesData = Array.isArray(facturesRes.data) ? facturesRes.data : (facturesRes.data.factures || []);
       const clientsData = clientsRes.data;
       const produitsData = produitsRes.data;
 

@@ -72,7 +72,7 @@ const Factures = () => {
         axios.get(`${API_URL}/api/produits`)
       ]);
 
-      const facturesData = facturesRes.data;
+      const facturesData = Array.isArray(facturesRes.data) ? facturesRes.data : (facturesRes.data.factures || []);
       const clientsData = clientsRes.data;
       const produitsData = produitsRes.data;
 
@@ -187,8 +187,8 @@ const Factures = () => {
 
     if (produitSelectionne.quantite < qteToAddPieces) {
       const stockAvailableStr = isCarton ?
-        `${Math.floor(produitSelectionne.quantite / (produitSelectionne.pieces_par_carton || 1))} ${produitSelectionne.nom_unite_gros || 'carton'}(s) et ${produitSelectionne.quantite % (produitSelectionne.pieces_par_carton || 1)} ${produitSelectionne.unité || 'pièce'}(s)` :
-        `${produitSelectionne.quantite} ${produitSelectionne.unité || 'pièce'}(s)`;
+        `${Math.floor(produitSelectionne.quantite / (produitSelectionne.pieces_par_carton || 1))} ${produitSelectionne.nom_unite_gros || 'carton'}(s)${produitSelectionne.quantite % (produitSelectionne.pieces_par_carton || 1) > 0 ? ` et ${(produitSelectionne.quantite % (produitSelectionne.pieces_par_carton || 1)).toFixed(3).replace(/\.?0+$/, "")} ${produitSelectionne.unité || 'pièce'}(s)` : ''}` :
+        `${produitSelectionne.quantite.toString().replace(/\.?0+$/, "")} ${produitSelectionne.unité || 'pièce'}(s)`;
       toast.error(`Stock insuffisant! Il ne reste que ${stockAvailableStr} disponibles.`);
       return;
     }

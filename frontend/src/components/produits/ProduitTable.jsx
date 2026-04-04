@@ -131,8 +131,8 @@ const ProduitTable = ({
                         <div className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full border ${badge.color}`}>
                           <span className="w-1.5 h-1.5 rounded-full bg-current"></span>
                           {ratio > 1
-                            ? `${cartons} ${produit.nom_unite_gros || 'carton'}(s) + ${pieces} ${produit.unité || 'pcs'}`
-                            : `${produit.quantite} ${produit.nom_unite_gros || 'u.'}`}
+                            ? `${cartons} ${produit.nom_unite_gros || 'carton'}(s)${pieces > 0 ? ` + ${pieces.toString().replace('.', ',')} ${produit.unité || 'pcs'}` : ''}`
+                            : `${produit.quantite.toString().replace('.', ',')} ${produit.nom_unite_gros || 'u.'}`}
                         </div>
                         <span className={`text-[10px] font-medium ${badge.color.includes('red') ? 'text-red-500' : badge.color.includes('amber') ? 'text-amber-500' : 'text-emerald-500'}`}>
                           {badge.label}
@@ -145,7 +145,7 @@ const ProduitTable = ({
                               <span className={`text-xs font-bold ${mode[produit.id] === 'add' ? 'text-emerald-600' : 'text-red-600'}`}>
                                 {mode[produit.id] === 'add' ? '+' : '−'}
                               </span>
-                              <input type="number" min="0" step="1"
+                              <input type="number" min="0" step="any"
                                 value={quantiteInput[produit.id] ?? '1'}
                                 onChange={e => setQuantiteInput(p => ({ ...p, [produit.id]: e.target.value }))}
                                 className="w-16 px-2 py-1 border border-gray-200 rounded-lg text-sm text-center"

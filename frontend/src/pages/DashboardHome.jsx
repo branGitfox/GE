@@ -4,8 +4,9 @@ import { API_URL } from '../config';
 import {
     FiDollarSign, FiBox, FiFileText, FiPackage, FiShoppingCart,
     FiCheckCircle, FiXCircle, FiRefreshCw, FiChevronLeft, FiChevronRight,
-    FiCalendar, FiRotateCcw, FiTag, FiTrendingUp
+    FiCalendar, FiRotateCcw, FiTag, FiTrendingUp, FiInfo
 } from 'react-icons/fi';
+import PeriodDetailModal from '../components/dashboard/PeriodDetailModal';
 import {
     BarChart, Bar, PieChart, Pie, AreaChart, Area, ComposedChart, Line, XAxis, YAxis,
     CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell
@@ -63,6 +64,14 @@ const DashboardHome = () => {
     const [soldSearch, setSoldSearch] = useState('');
     const [depenseSearch, setDepenseSearch] = useState('');
     const [productSearch, setProductSearch] = useState('');
+    
+    // Years state
+    const [availableYears, setAvailableYears] = useState([new Date().getFullYear()]);
+
+    // Modal state for detailed periods
+    const [isPeriodModalOpen, setIsPeriodModalOpen] = useState(false);
+    const [modalTitle, setModalTitle] = useState('');
+    const [modalRange, setModalRange] = useState({ startDate: '', endDate: '' });
 
     const fetchDashboardData = async () => {
         setLoading(true);
@@ -113,6 +122,20 @@ const DashboardHome = () => {
         }
     };
 
+    const fetchYears = async () => {
+        try {
+            const res = await axios.get(`${API_URL}/api/factures/years`, {
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+            });
+            setAvailableYears(res.data);
+            if (res.data.length > 0 && !res.data.includes(selectedYear)) {
+                setSelectedYear(res.data[0]);
+            }
+        } catch (err) {
+            console.error("Erreur fetch years:", err);
+        }
+    };
+
     const handleExportExcel = async () => {
         try {
             const response = await axios.get(`${API_URL}/api/export/excel`, {
@@ -137,6 +160,10 @@ const DashboardHome = () => {
         fetchDashboardData();
     }, [selectedYear, startDate, endDate]);
 
+    useEffect(() => {
+        fetchYears();
+    }, []);
+
     const formatCurrency = (amount) => {
         return new Intl.NumberFormat('fr-FR').format(amount || 0) + " Fmg";
     };
@@ -150,7 +177,6 @@ const DashboardHome = () => {
         '#0ea5e9', // sky
         '#ec4899'  // pink
     ];
-    const years = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i);
 
     const CustomTooltip = ({ active, payload, label }) => {
         if (active && payload && payload.length) {
@@ -253,6 +279,34 @@ const DashboardHome = () => {
 
     const totalActualBenefice = soldProducts.reduce((acc, p) => acc + (p.totalBenefice || 0), 0);
 
+    const openPeriodModal = (type) => {
+        const now = new Date();
+        let start = '';
+        let end = new Date().toLocaleDateString('en-CA');
+        let title = '';
+
+        if (type === 'today') {
+            start = end;
+            title = "Aujourd'hui";
+        } else if (type === 'week') {
+            const startOfWeek = new Date(now);
+            const day = startOfWeek.getDay() || 7;
+            if (day !== 1) startOfWeek.setHours(-24 * (day - 1));
+            start = startOfWeek.toLocaleDateString('en-CA');
+            title = "Cette Semaine";
+        } else if (type === 'month') {
+            start = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+            title = "Ce Mois";
+        } else if (type === 'year') {
+            start = `${now.getFullYear()}-01-01`;
+            title = "Cette Année";
+        }
+
+        setModalRange({ startDate: start, endDate: end });
+        setModalTitle(title);
+        setIsPeriodModalOpen(true);
+    };
+
     if (loading && !stats.totalRevenue) return (
         <div className="flex items-center justify-center min-h-screen">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
@@ -313,7 +367,7 @@ const DashboardHome = () => {
                             }}
                             className="bg-gray-50 border-none rounded-lg text-sm font-bold text-indigo-700 focus:ring-2 focus:ring-indigo-200 cursor-pointer py-1.5 pl-3 pr-8"
                         >
-                            {years.map(y => (
+                            {availableYears.map(y => (
                                 <option key={y} value={y}>{y}</option>
                             ))}
                         </select>
@@ -332,26 +386,36 @@ const DashboardHome = () => {
                 </div>
             </div>
 
-            {/* Cartes des périodes */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                 {[
-                    { label: "Aujourd'hui", value: stats.revenueToday, paid: stats.paidToday, color: 'indigo', icon: <FiFileText /> },
-                    { label: "Cette Semaine", value: stats.revenueWeek, paid: stats.paidWeek, color: 'blue', icon: <FiFileText /> },
-                    { label: "Ce Mois", value: stats.revenueMonth, paid: stats.paidMonth, color: 'purple', icon: <FiFileText /> },
+                    { label: "Aujourd'hui", value: stats.revenueToday, color: 'indigo', icon: <FiFileText />, type: 'today' },
+                    { label: "Cette Semaine", value: stats.revenueWeek, color: 'blue', icon: <FiFileText />, type: 'week' },
+                    { label: "Ce Mois", value: stats.revenueMonth, color: 'purple', icon: <FiFileText />, type: 'month' },
+                    { label: "Cette Année", value: stats.revenueYear, color: 'emerald', icon: <FiFileText />, type: 'year' },
                 ].map((card, i) => (
-                    <div key={i} className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex items-center transform transition-transform hover:scale-[1.02]">
-                        <div className={`p-3 bg-${card.color}-50 rounded-full mr-4`}>
-                            {React.cloneElement(card.icon, { className: `text-${card.color}-600 text-xl` })}
-                        </div>
-                        <div>
-                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{card.label}</p>
-                            <h3 className={`text-xl font-black text-${card.color}-700`}>{formatCurrency(card.value)}</h3>
-                            {/* <p className="text-[10px] font-bold text-emerald-600 mt-0.5">💰 Encaissé : {formatCurrency(card.paid)}</p> */}
+                    <div key={i} className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex flex-col transform transition-transform hover:scale-[1.02] relative group">
+                        <div className="flex items-center">
+                            <div className={`p-3 bg-${card.color}-50 rounded-full mr-4`}>
+                                {React.cloneElement(card.icon, { className: `text-${card.color}-600 text-xl` })}
+                            </div>
+                            <div className="flex-1">
+                                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-tight">{card.label}</p>
+                                <h3 className={`text-xl font-black text-${card.color}-700`}>{formatCurrency(card.value)}</h3>
+                            </div>
+                            <button 
+                                onClick={() => openPeriodModal(card.type)}
+                                className="p-2 bg-gray-50 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                                title="Voir détails"
+                            >
+                                <FiInfo size={18} />
+                            </button>
                         </div>
                     </div>
                 ))}
+            </div>
 
-                {/* Carte Sélectionnée Spéciale */}
+            {/* Cartes globales - Rangée 1: Balances */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
                 <div className="bg-white p-5 rounded-xl shadow-sm border border-indigo-200 flex flex-col justify-center transform transition-transform hover:scale-[1.02] border-l-4 border-l-indigo-600">
                     <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Période Sélectionnée</p>
                     <h3 className="text-xl font-black text-gray-900">{formatCurrency(stats.revenueSelectedRange)}</h3>
@@ -364,19 +428,6 @@ const DashboardHome = () => {
                             <p className="text-[9px] text-gray-400 uppercase font-bold">Reste</p>
                             <p className="text-xs font-black text-rose-600">{formatCurrency(stats.unpaidSelectedRange)}</p>
                         </div>
-                    </div>
-                </div>
-            </div>
-
-            {/* Cartes globales - Rangée 1: Balances */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center transform transition-transform hover:scale-[1.02]">
-                    <div className="p-4 bg-blue-50 rounded-xl mr-4">
-                        <FiDollarSign className="text-blue-600 text-2xl" />
-                    </div>
-                    <div>
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Revenu Brut Annuel</p>
-                        <h2 className="text-2xl font-black text-gray-900">{formatCurrency(stats.revenueSelectedYear)}</h2>
                     </div>
                 </div>
 
@@ -716,8 +767,8 @@ const DashboardHome = () => {
                                             const unite_gros = p.unite_achat || p.nom_unite_gros || 'Unité';
                                             const unite_detail = p['unité'] || 'Pièce';
                                             const stockStr = isCartonActive
-                                                ? `${Math.floor(p.quantite / p.pieces_par_carton)} ${unite_gros}, ${p.quantite % p.pieces_par_carton} ${unite_detail}`
-                                                : `${p.quantite} ${unite_gros}`;
+                                                ? `${Math.floor(p.quantite / p.pieces_par_carton)} ${unite_gros}${p.quantite % p.pieces_par_carton > 0 ? `, ${(p.quantite % p.pieces_par_carton).toString().replace('.', ',')} ${unite_detail}` : ''}`
+                                                : `${p.quantite.toString().replace('.', ',')} ${unite_gros}`;
 
                                             return (
                                                 <tr key={p.id} className="border-b border-gray-50 hover:bg-blue-50/30 transition-colors">
@@ -745,6 +796,13 @@ const DashboardHome = () => {
                     </div>
                 </div>
             </div>
+
+            <PeriodDetailModal 
+                isOpen={isPeriodModalOpen} 
+                onClose={() => setIsPeriodModalOpen(false)} 
+                initialRange={modalRange} 
+                title={modalTitle} 
+            />
         </div>
     );
 };

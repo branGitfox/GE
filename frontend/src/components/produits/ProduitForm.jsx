@@ -204,13 +204,13 @@ const ProduitForm = ({
               <div>
                 <label className={labelCls}><FaHashtag className="inline mr-1 text-violet-400" /> {formData.nom_unite_gros || 'Gros'}</label>
                 <input type="number" name="stock_cartons" value={formData.stock_cartons ?? ''} onChange={handleChange}
-                  min="0" step="1" required disabled={!!editingProduit}
+                  step="1" required disabled={!!editingProduit}
                   className={`${inputCls} ${editingProduit ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : ''}`} />
               </div>
               <div className={!hasDetail || !!editingProduit ? 'opacity-50 pointer-events-none' : ''}>
                 <label className={labelCls}>{formData.unité || 'Détail'} (suppl.)</label>
                 <input type="number" name="stock_pieces" value={formData.stock_pieces ?? ''} onChange={handleChange}
-                  min="0" step="1" disabled={!!editingProduit}
+                  step="1" disabled={!!editingProduit}
                   className={`${inputCls} bg-gray-50 text-gray-500`} />
               </div>
             </div>
@@ -228,7 +228,7 @@ const ProduitForm = ({
             <div>
               <label className={labelCls}><FaDollarSign className="inline mr-1 text-violet-400" /> Prix Vente ({formData.nom_unite_gros || 'Gros'})</label>
               <input type="number" name="prix_carton" value={formData.prix_carton || ''} onChange={handleChange}
-                min="0" step="1000" required className={inputCls} />
+                step="1000" required className={inputCls} />
             </div>
 
             {/* Prix vente Détail */}
@@ -236,7 +236,7 @@ const ProduitForm = ({
               <div>
                 <label className={labelCls}><FaDollarSign className="inline mr-1 text-violet-400" /> Prix Vente ({formData.unité || 'Détail'})</label>
                 <input type="number" name="prix_piece" value={formData.prix_piece || ''} onChange={handleChange}
-                  min="0" step="1000" required={hasDetail} className={inputCls} />
+                  step="1000" required={hasDetail} className={inputCls} />
               </div>
             )}
 
@@ -246,7 +246,7 @@ const ProduitForm = ({
                 <FaExclamationTriangle className="inline mr-1" /> Seuil Alerte Stock
               </label>
               <input type="number" name="stock_threshold" value={formData.stock_threshold ?? ''} onChange={handleChange}
-                min="0" step="1" placeholder="0"
+                step="1" placeholder="0"
                 className="w-full px-3 py-2 rounded-lg border border-red-200 bg-white focus:outline-none focus:ring-2 focus:ring-red-400 text-sm" />
               <p className="text-xs text-red-400 mt-1">🔔 Alerte si stock ≤ seuil (en {formData.nom_unite_gros || 'Gros'})</p>
             </div>
@@ -321,14 +321,14 @@ const ProduitForm = ({
               <div>
                 <label className="text-xs text-gray-500 mb-1 block">{formData.nom_unite_gros || 'Gros'}</label>
                 <input type="number" name="prix_achat" value={formData.prix_achat || ''} onChange={handleChange}
-                  min="0" step="1000" required
+                  step="1000" required
                   className="w-full px-3 py-2 rounded-lg border border-amber-200 bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 text-sm" />
               </div>
               {hasDetail && (
                 <div>
                   <label className="text-xs text-gray-500 mb-1 block">{formData.unité || 'Détail'} (optionnel)</label>
                   <input type="number" name="prix_achat_piece" value={formData.prix_achat_piece || ''} onChange={handleChange}
-                    min="0" step="1000" placeholder="Calculé auto si vide"
+                    step="1000" placeholder="Calculé auto si vide"
                     className="w-full px-3 py-2 rounded-lg border border-amber-200 bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 text-sm" />
                 </div>
               )}

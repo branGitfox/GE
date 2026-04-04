@@ -9,6 +9,7 @@ router.get("/stats", factureController.getDashboardStats);
 router.get("/sold-products", factureController.getSoldProducts);
 router.get("/top-suppliers", factureController.getTopSuppliers);
 router.get("/financial-stats", factureController.getFinancialStats);
+router.get("/years", factureController.getYearsWithData);
 // router.put("/:id/annuler", factureController.annulerFacture);
 // router.put("/:id/modifier", factureController.modifierFacture);
 

@@ -73,7 +73,7 @@ const ClientsWithFactures = () => {
         axios.get(`${API_URL}/api/factures`),
       ]);
       setClients(clientsRes.data);
-      setFactures(facturesRes.data);
+      setFactures(Array.isArray(facturesRes.data) ? facturesRes.data : (facturesRes.data.factures || []));
     } catch (err) {
       setError('Erreur lors du chargement des données.');
     } finally {
