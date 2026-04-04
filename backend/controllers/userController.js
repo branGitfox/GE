@@ -20,7 +20,7 @@ const upload = multer({ storage });
 exports.registerUser = [ 
   upload.single('image'),
   (req, res) => {
-  const { nom, prenom, email, mdp, confirmMdp, role } = req.body;
+  const { nom, prenom, email, mdp, confirmMdp, role_id } = req.body;
   const image = req.file ? req.file.filename : null;
 
   if (mdp !== confirmMdp) {
@@ -41,10 +41,10 @@ exports.registerUser = [
 
       // Insérer l'utilisateur
       const insertQuery = `
-        INSERT INTO users (nom, prenom, email, mdp, role, image, validated)
+        INSERT INTO users (nom, prenom, email, mdp, role_id, image, validated)
         VALUES (?, ?, ?, ?, ?, ?, FALSE)
       `;
-      db.query(insertQuery, [nom, prenom, email, hashedPassword, role, image], (err, result) => {
+      db.query(insertQuery, [nom, prenom, email, hashedPassword, role_id, image], (err, result) => {
         if (err) {
           console.error('Erreur lors de l\'insertion:', err);
           return res.status(500).send('Erreur interne du serveur');
@@ -91,7 +91,12 @@ exports.validateUser = (req, res) => {
 
   // Récupérer les utilisateurs non validés
 exports.getUnvalidatedUsers = (req, res) => {
-    const query = 'SELECT id, nom, prenom, email, role, image,created_at FROM users WHERE validated = FALSE';
+    const query = `
+      SELECT u.id, u.nom, u.prenom, u.email, r.nom as role, u.role_id, u.image, u.created_at 
+      FROM users u
+      LEFT JOIN roles r ON u.role_id = r.id 
+      WHERE u.validated = FALSE
+    `;
   
     db.query(query, (err, result) => {
       if (err) {

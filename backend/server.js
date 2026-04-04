@@ -86,6 +86,8 @@ const exportRoutes = require('./routes/exportRoutes');
 app.use('/api/export', exportRoutes);
 const logRoutes = require('./routes/logRoutes');
 app.use('/api/logs', authenticateToken, logRoutes);
+const roleRoutes = require('./routes/roleRoutes');
+app.use('/api/roles', authenticateToken, roleRoutes);
 
 // Gestion des erreurs 404
 app.use((req, res, next) => {

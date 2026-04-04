@@ -236,11 +236,11 @@ exports.resetDatabase = async (req, res) => {
             // Extract table names
             const allTables = results.map(row => Object.values(row)[0]);
             // Filter out 'users' table
-            const tablesToTruncate = allTables.filter(table => table.toLowerCase() !== 'users');
+            const tablesToTruncate = allTables.filter(table => table.toLowerCase() !== 'users' && table.toLowerCase() !== 'role_pages' && table.toLowerCase() !== 'roles' && table.toLowerCase() !== 'pages' && table.toLowerCase() !== 'fournisseurs' && table.toLowerCase() !== 'categories' && table.toLowerCase() !== 'entrepots' && table.toLowerCase() !== 'clients');
 
             if (tablesToTruncate.length === 0) {
                 return res.status(200).json({
-                    message: 'Aucune table à réinitialiser (hors users).'
+                    message: 'Aucune table à réinitialiser.'
                 });
             }
 
