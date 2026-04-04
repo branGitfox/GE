@@ -40,19 +40,38 @@ exports.loginUser = async (req, res) => {
           return res.status(401).send({ message: 'Mot de passe incorrect.' });
         }
   
-        // Générer un token JWT (Expire dans 1 an pour rester connecté)
-        const token = jwt.sign({ id: user.id, role: user.role }, SECRET_KEY, { expiresIn: '365d' });
+        // Récupérer les permissions (pages autorisées)
+        const permQuery = `
+          SELECT p.chemin 
+          FROM pages p
+          JOIN role_pages rp ON p.id = rp.page_id
+          WHERE rp.role_id = ?
+        `;
         
-        res.status(200).send({
-          message: 'Connexion réussie',
-          token,
-          user: {
-            id: user.id,
-            nom: user.nom,
-            prenom: user.prenom,
-            role: user.role,
-            image: user.image  // Inclure l'image de l'utilisateur
-          },
+        db.query(permQuery, [user.role_id], (err, perms) => {
+          if (err) {
+            console.error('Erreur permissions:', err);
+            return res.status(500).send('Erreur lors de la récupération des permissions');
+          }
+
+          const permissions = perms.map(p => p.chemin);
+
+          // Générer un token JWT (Expire dans 1 an pour rester connecté)
+          const token = jwt.sign({ id: user.id, role: user.role, role_id: user.role_id }, SECRET_KEY, { expiresIn: '365d' });
+          
+          res.status(200).send({
+            message: 'Connexion réussie',
+            token,
+            user: {
+              id: user.id,
+              nom: user.nom,
+              prenom: user.prenom,
+              role: user.role,
+              role_id: user.role_id,
+              permissions,
+              image: user.image
+            },
+          });
         });
       });
     } catch (err) {
