@@ -1,6 +1,7 @@
 // Description: Contrôleur pour gérer les factures, y compris la création et la récupération de factures
 
 const db = require("../db");
+const { safeParseFloat } = require("../utils/priceHelper");
 const { logAction } = require("../utils/logger");
 
 // Créer une facture avec gestion de stock
@@ -47,17 +48,18 @@ exports.createFacture = async (req, res) => {
 
     // 4. Vérifier les stocks SÉQUENTIELLEMENT (Uniquement pour les factures)
     if (status === 'facture') {
-      const aggregatedArticles = {};
+      const neededByProduct = {}; // id -> { amount: totalPieces, info: productRow }
+      
       for (const article of liste_articles) {
         const id = article.produit_id;
-        const qte = parseFloat(article.quantite) || 0;
-
-        // Aggregate quantities for the same product ID
-        if (aggregatedArticles[id]) {
-          aggregatedArticles[id].quantite += qte;
-        } else {
-          aggregatedArticles[id] = { ...article, quantite: qte };
+        if (!neededByProduct[id]) {
+          const resP = await queryAsync("SELECT quantite, nom, pieces_par_carton, nom_unite_gros, unité FROM produits WHERE id = ?", [id]);
+          if (resP.length === 0) throw new Error(`Produit ID ${id} introuvable`);
+          neededByProduct[id] = { amount: 0, info: resP[0] };
         }
+        
+        const multi = article.type_vente === 'carton' ? (neededByProduct[id].info.pieces_par_carton || 1) : 1;
+        neededByProduct[id].amount += safeParseFloat(article.quantite) * multi;
       }
 
       // Helper to format stock message
@@ -66,21 +68,17 @@ exports.createFacture = async (req, res) => {
         const pieces = (qty % (ratio || 1)).toFixed(3).replace(/\.?0+$/, "");
         if (ratio > 1) {
           let str = `${cartons} ${grosName || 'Gros'}`;
-          if (parseFloat(pieces) > 0) str += ` et ${pieces} ${detailName || 'Détail'}`;
+          if (safeParseFloat(pieces) > 0) str += ` et ${pieces} ${detailName || 'Détail'}`;
           return str;
         }
         return `${qty} ${detailName || 'Unité(s)'}`;
       };
 
-      for (const item of Object.values(aggregatedArticles)) {
-        const resP = await queryAsync("SELECT quantite, nom, pieces_par_carton, nom_unite_gros, unité FROM produits WHERE id = ?", [item.produit_id]);
-        const produit = resP[0];
-        if (!produit) throw new Error(`Produit ID ${item.produit_id} introuvable`);
+      for (const [id, data] of Object.entries(neededByProduct)) {
+        const produit = data.info;
+        const totalNeeded = data.amount;
 
-        const multi = item.type_vente === 'carton' ? (produit.pieces_par_carton || 1) : 1;
-        const totalNeeded = parseFloat(item.quantite) * multi;
-
-        if (parseFloat(produit.quantite) < totalNeeded) {
+        if (safeParseFloat(produit.quantite) < totalNeeded) {
           const dispoStr = formatStock(produit.quantite, produit.pieces_par_carton, produit.nom_unite_gros, produit.unité);
           const requisStr = formatStock(totalNeeded, produit.pieces_par_carton, produit.nom_unite_gros, produit.unité);
           throw new Error(`Stock insuffisant pour ${produit.nom} (Disponible: ${dispoStr}, Requis: ${requisStr})`);
@@ -119,7 +117,7 @@ exports.createFacture = async (req, res) => {
         const resP = await queryAsync("SELECT * FROM produits WHERE id = ?", [article.produit_id]);
         const produit = resP[0];
         const multi = article.type_vente === 'carton' ? (produit.pieces_par_carton || 1) : 1;
-        const qtyToDeduct = parseFloat(article.quantite) * multi;
+        const qtyToDeduct = safeParseFloat(article.quantite) * multi;
 
         // 1. Diminuer le stock produit
         await queryAsync("UPDATE produits SET quantite = quantite - ? WHERE id = ?", [qtyToDeduct, article.produit_id]);
@@ -182,7 +180,7 @@ exports.deleteFacture = async (req, res) => {
     const facture = factures[0];
 
     // 3. Vérifier si elle est payée ou a une avance
-    if (parseFloat(facture.paiement) > 0) {
+    if (safeParseFloat(facture.paiement) > 0) {
       throw new Error("Impossible de supprimer une facture payée ou avec une avance.");
     }
 
@@ -195,7 +193,7 @@ exports.deleteFacture = async (req, res) => {
         
         if (produit) {
           const multi = article.type_vente === 'carton' ? (produit.pieces_par_carton || 1) : 1;
-          const qtyToRestore = parseFloat(article.quantite) * multi;
+          const qtyToRestore = safeParseFloat(article.quantite) * multi;
 
           await queryAsync(
             "UPDATE produits SET quantite = quantite + ? WHERE id = ?",
@@ -368,7 +366,7 @@ exports.getDashboardStats = async (req, res) => {
       const rangeEndStr = endDate || null;
 
       results.forEach(facture => {
-        const montant = parseFloat(facture.prix_total) || 0;
+        const montant = safeParseFloat(facture.prix_total) || 0;
         const dateFacture = new Date(facture.date_facture);
 
         const fYear = dateFacture.getFullYear();
@@ -378,10 +376,10 @@ exports.getDashboardStats = async (req, res) => {
 
         // Add to total (within the query result scope)
         totalRevenue += montant;
-        const paidAmount = parseFloat(facture.paiement) || 0;
+        const paidAmount = safeParseFloat(facture.paiement) || 0;
         totalPaid += paidAmount;
         totalUnpaid += Math.max(0, montant - paidAmount);
-        totalRemise += parseFloat(facture.remise) || 0;
+        totalRemise += safeParseFloat(facture.remise) || 0;
 
         // Period Calculations
         if (dateStr === todayStr) revenueToday += montant;
@@ -394,7 +392,7 @@ exports.getDashboardStats = async (req, res) => {
         if (rangeStartStr && rangeEndStr) {
           if (dateStr >= rangeStartStr && dateStr <= rangeEndStr) {
             revenueSelectedRange += montant;
-            const paidAmountInRange = parseFloat(facture.paiement) || 0;
+            const paidAmountInRange = safeParseFloat(facture.paiement) || 0;
             paidSelectedRange += paidAmountInRange;
             unpaidSelectedRange += Math.max(0, montant - paidAmountInRange);
           }
@@ -402,7 +400,7 @@ exports.getDashboardStats = async (req, res) => {
 
         // Encaissements basés sur date_paiement (argent réellement reçu)
         const datePmt = facture.date_paiement ? new Date(facture.date_paiement + 'T00:00:00') : null;
-        const dernierVersement = parseFloat(facture.dernier_paiement || 0);
+        const dernierVersement = safeParseFloat(facture.dernier_paiement || 0);
         if (datePmt && dernierVersement > 0) {
           const dpYear = datePmt.getFullYear();
           const dpMonth = String(datePmt.getMonth() + 1).padStart(2, '0');
@@ -503,21 +501,21 @@ exports.getSoldProducts = async (req, res) => {
               const typeVente = article.type_vente || 'piece';
               const productKey = `${article.produit_id || article.nom}_${typeVente}`;
 
-              const qte = parseFloat(article.quantite) || 0;
-              const prixVente = parseFloat(article.prix) || 0;
+              const qte = safeParseFloat(article.quantite) || 0;
+              const prixVente = safeParseFloat(article.prix) || 0;
               const revenue = qte * prixVente;
               
               // Determine historical cost if available
               let articleCost = 0;
               let hasHistoricalCost = false;
               if (typeVente === 'carton' && article.prix_achat !== undefined) {
-                 articleCost = parseFloat(article.prix_achat) || 0;
+                 articleCost = safeParseFloat(article.prix_achat) || 0;
                  hasHistoricalCost = true;
               } else if (typeVente === 'piece' && article.prix_achat_piece !== undefined) {
-                 articleCost = parseFloat(article.prix_achat_piece) || 0;
+                 articleCost = safeParseFloat(article.prix_achat_piece) || 0;
                  hasHistoricalCost = true;
               } else if (typeVente === 'piece' && article.prix_achat !== undefined && article.pieces_par_carton) {
-                 articleCost = (parseFloat(article.prix_achat) || 0) / (parseFloat(article.pieces_par_carton) || 1);
+                 articleCost = (safeParseFloat(article.prix_achat) || 0) / (safeParseFloat(article.pieces_par_carton) || 1);
                  hasHistoricalCost = true;
               }
 
@@ -574,7 +572,7 @@ exports.getSoldProducts = async (req, res) => {
           if (sp.produit_id && produitMap.has(sp.produit_id)) {
             const prod = produitMap.get(sp.produit_id);
             const isCarton = sp.type_vente === 'carton';
-            const piecesParCarton = parseFloat(prod.pieces_par_carton) || 1;
+            const piecesParCarton = safeParseFloat(prod.pieces_par_carton) || 1;
 
             // Resolve real unit name: carton → nom_unite_gros, else → unité (detail)
             sp.unité = isCarton
@@ -584,8 +582,8 @@ exports.getSoldProducts = async (req, res) => {
             // Fallback cost calculation for old invoices
             if (sp.qteNeedsFallback > 0) {
                const fallbackPrixAchat = isCarton
-                 ? (parseFloat(prod.prix_achat) || 0)
-                 : (parseFloat(prod.prix_achat_piece) > 0 ? parseFloat(prod.prix_achat_piece) : ((parseFloat(prod.prix_achat) || 0) / piecesParCarton));
+                 ? (safeParseFloat(prod.prix_achat) || 0)
+                 : (safeParseFloat(prod.prix_achat_piece) > 0 ? safeParseFloat(prod.prix_achat_piece) : ((safeParseFloat(prod.prix_achat) || 0) / piecesParCarton));
                
                sp.totalBenefice += sp.revenueNeedsFallback - (sp.qteNeedsFallback * fallbackPrixAchat);
                if (sp.prix_achat === 0) sp.prix_achat = fallbackPrixAchat;
@@ -683,19 +681,19 @@ exports.getFinancialStats = async (req, res) => {
     factures.forEach(f => {
       const target = monthlyData.find(m => m.year === f.year && m.month === f.month);
       if (target) {
-        target.revenue = parseFloat(f.revenue) || 0;
-        target.paid = parseFloat(f.paid) || 0;
+        target.revenue = safeParseFloat(f.revenue) || 0;
+        target.paid = safeParseFloat(f.paid) || 0;
       }
     });
 
     depenses.forEach(d => {
       const target = monthlyData.find(m => m.year === d.year && m.month === d.month);
-      if (target) target.expenses += parseFloat(d.total) || 0;
+      if (target) target.expenses += safeParseFloat(d.total) || 0;
     });
 
     achats.forEach(a => {
       const target = monthlyData.find(m => m.year === a.year && m.month === a.month);
-      if (target) target.expenses += parseFloat(a.total) || 0;
+      if (target) target.expenses += safeParseFloat(a.total) || 0;
     });
 
     // Calculer le bénéfice (entrant - depense)
@@ -737,15 +735,18 @@ exports.convertProformaToFacture = async (req, res) => {
     const liste_articles = JSON.parse(facture.liste_articles || "[]");
 
     // 3. Vérifier les stocks
-    const aggregatedArticles = {};
+    const neededByProduct = {}; // id -> { amount: totalPieces, info: productRow }
+    
     for (const article of liste_articles) {
-      const pId = article.produit_id;
-      const qte = parseFloat(article.quantite) || 0;
-      if (aggregatedArticles[pId]) {
-        aggregatedArticles[pId].quantite += qte;
-      } else {
-        aggregatedArticles[pId] = { ...article, quantite: qte };
+      const id = article.produit_id;
+      if (!neededByProduct[id]) {
+        const resP = await queryAsync("SELECT quantite, nom, pieces_par_carton, nom_unite_gros, unité FROM produits WHERE id = ?", [id]);
+        if (resP.length === 0) throw new Error(`Produit ID ${id} introuvable`);
+        neededByProduct[id] = { amount: 0, info: resP[0] };
       }
+      
+      const multi = article.type_vente === 'carton' ? (neededByProduct[id].info.pieces_par_carton || 1) : 1;
+      neededByProduct[id].amount += safeParseFloat(article.quantite) * multi;
     }
 
     const formatStock = (qty, ratio, grosName, detailName) => {
@@ -753,21 +754,17 @@ exports.convertProformaToFacture = async (req, res) => {
       const pieces = (qty % (ratio || 1)).toFixed(3).replace(/\.?0+$/, "");
       if (ratio > 1) {
         let str = `${cartons} ${grosName || 'Gros'}`;
-        if (parseFloat(pieces) > 0) str += ` et ${pieces} ${detailName || 'Détail'}`;
+        if (safeParseFloat(pieces) > 0) str += ` et ${pieces} ${detailName || 'Détail'}`;
         return str;
       }
       return `${qty} ${detailName || 'Unité(s)'}`;
     };
 
-    for (const item of Object.values(aggregatedArticles)) {
-      const resP = await queryAsync("SELECT quantite, nom, pieces_par_carton, nom_unite_gros, unité FROM produits WHERE id = ?", [item.produit_id]);
-      const produit = resP[0];
-      if (!produit) throw new Error(`Produit ID ${item.produit_id} introuvable`);
+    for (const [id, data] of Object.entries(neededByProduct)) {
+      const produit = data.info;
+      const totalNeeded = data.amount;
 
-      const multi = item.type_vente === 'carton' ? (produit.pieces_par_carton || 1) : 1;
-      const totalNeeded = parseFloat(item.quantite) * multi;
-
-      if (parseFloat(produit.quantite) < totalNeeded) {
+      if (safeParseFloat(produit.quantite) < totalNeeded) {
         const dispoStr = formatStock(produit.quantite, produit.pieces_par_carton, produit.nom_unite_gros, produit.unité);
         const requisStr = formatStock(totalNeeded, produit.pieces_par_carton, produit.nom_unite_gros, produit.unité);
         throw new Error(`Stock insuffisant pour ${produit.nom} (Disponible: ${dispoStr}, Requis: ${requisStr})`);
@@ -778,7 +775,7 @@ exports.convertProformaToFacture = async (req, res) => {
     for (const article of liste_articles) {
       const resP = await queryAsync("SELECT pieces_par_carton FROM produits WHERE id = ?", [article.produit_id]);
       const multi = article.type_vente === 'carton' ? (resP[0]?.pieces_par_carton || 1) : 1;
-      const qtyToDeduct = parseFloat(article.quantite) * multi;
+      const qtyToDeduct = safeParseFloat(article.quantite) * multi;
 
       await queryAsync("UPDATE produits SET quantite = quantite - ? WHERE id = ?", [qtyToDeduct, article.produit_id]);
     }
@@ -804,8 +801,8 @@ exports.convertProformaToFacture = async (req, res) => {
 exports.addPayment = async (req, res) => {
   const { id } = req.params;
   const { montant, remise } = req.body;
-  const paymentAmount = parseFloat(montant || 0);
-  const remiseAmount = parseFloat(remise || 0);
+  const paymentAmount = safeParseFloat(montant || 0);
+  const remiseAmount = safeParseFloat(remise || 0);
 
   if (paymentAmount <= 0 && remiseAmount <= 0) {
     return res.status(400).json({ message: "Montant ou remise invalide" });
@@ -818,9 +815,9 @@ exports.addPayment = async (req, res) => {
     }
 
     const facture = factures[0][0];
-    const oldPrixTotal = parseFloat(facture.prix_total);
-    const oldRemise = parseFloat(facture.remise || 0);
-    const oldPaiement = parseFloat(facture.paiement || 0);
+    const oldPrixTotal = safeParseFloat(facture.prix_total);
+    const oldRemise = safeParseFloat(facture.remise || 0);
+    const oldPaiement = safeParseFloat(facture.paiement || 0);
 
     const nouveauPrixTotal = oldPrixTotal - remiseAmount;
     const nouvelleRemise = oldRemise + remiseAmount;
@@ -886,14 +883,14 @@ exports.getTopSuppliers = async (req, res) => {
             if (!pid) return;
             const key = pid;
             if (productSales.has(key)) {
-              productSales.get(key).quantite += parseFloat(article.quantite) || 0;
-              productSales.get(key).revenue += (parseFloat(article.quantite) || 0) * (parseFloat(article.prix) || 0);
+              productSales.get(key).quantite += safeParseFloat(article.quantite) || 0;
+              productSales.get(key).revenue += (safeParseFloat(article.quantite) || 0) * (safeParseFloat(article.prix) || 0);
             } else {
               productSales.set(key, {
                 id: pid,
                 nom: article.nom,
-                quantite: parseFloat(article.quantite) || 0,
-                revenue: (parseFloat(article.quantite) || 0) * (parseFloat(article.prix) || 0)
+                quantite: safeParseFloat(article.quantite) || 0,
+                revenue: (safeParseFloat(article.quantite) || 0) * (safeParseFloat(article.prix) || 0)
               });
             }
           });

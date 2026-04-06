@@ -3,6 +3,7 @@ import { FaCheck, FaTimes, FaEdit, FaTrash, FaUserSlash } from 'react-icons/fa';
 
 const UsersTable = ({ 
   users, 
+  availableRoles,
   editingUser, 
   editForm, 
   handleInputChange, 
@@ -62,13 +63,16 @@ const UsersTable = ({
                     />
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <input
-                      type="text"
-                      name="role"
-                      value={editForm.role}
+                    <select
+                      name="role_id"
+                      value={editForm.role_id}
                       onChange={handleInputChange}
                       className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
+                    >
+                      {availableRoles && availableRoles.map(r => (
+                        <option key={r.id} value={r.id}>{r.nom}</option>
+                      ))}
+                    </select>
                   </td>
                   <td colSpan={isPendingTable ? 1 : 2} className="px-6 py-4 whitespace-nowrap text-right">
                     <div className="flex justify-end space-x-2">

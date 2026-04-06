@@ -1,5 +1,6 @@
-const db = require('../db');
 const { logAction } = require('../utils/logger');
+const db = require('../db');
+const { safeParseFloat } = require('../utils/priceHelper');
 
 // Récupérer tous les produits
 exports.getAllProduits = (req, res) => {
@@ -42,11 +43,11 @@ exports.getAllProduits = (req, res) => {
 exports.createProduit = (req, res) => {
     const { nom, description, nom_unite_gros, quantite, prix, unité, category_id, pieces_par_carton, prix_carton, prix_piece, prix_achat, prix_achat_piece, updateExisting, importSourceId, fournisseur_id, stock_threshold } = req.body;
 
-    if (parseFloat(prix_carton || 0) <= 0) {
+    if (safeParseFloat(String(prix_carton || 0).replace(/\s/g, "")) <= 0) {
         return res.status(400).json({ message: 'Le prix de vente (Gros) doit être supérieur à 0' });
     }
 
-    if (parseInt(pieces_par_carton || 1) > 1 && parseFloat(prix_piece || 0) <= 0) {
+    if (parseInt(pieces_par_carton || 1) > 1 && safeParseFloat(String(prix_piece || 0).replace(/\s/g, "")) <= 0) {
         return res.status(400).json({ message: 'Le prix de vente au détail doit être supérieur à 0' });
     }
 
@@ -67,8 +68,16 @@ exports.createProduit = (req, res) => {
             const query = 'UPDATE produits SET quantite = quantite + ?, prix_carton = ?, prix_piece = ?, category_id = ?, description = ?, nom_unite_gros = ?, unité = ?, pieces_par_carton = ?, prix_achat = ?, prix_achat_piece = ?, fournisseur_id = ?, stock_threshold = ? WHERE id = ?';
             const safeCategoryId = category_id && category_id !== '' ? category_id : existingProduit.category_id;
             const safeFournisseurId = fournisseur_id && fournisseur_id !== '' ? fournisseur_id : existingProduit.fournisseur_id;
+            
+            const currentRatioForPrice = safeParseFloat(pieces_par_carton || existingProduit.pieces_par_carton || 1);
+            const currentPrixAchat = safeParseFloat(prix_achat || existingProduit.prix_achat || 0);
+            let finalPrixAchatPiece = safeParseFloat(prix_achat_piece || existingProduit.prix_achat_piece || 0);
+            
+            if (finalPrixAchatPiece <= 0 && currentRatioForPrice > 1 && currentPrixAchat > 0) {
+                finalPrixAchatPiece = currentPrixAchat / currentRatioForPrice;
+            }
 
-            db.query(query, [quantite, prix_carton, prix_piece, safeCategoryId, description || existingProduit.description, nom_unite_gros || existingProduit.nom_unite_gros, unité || existingProduit.unité, pieces_par_carton || existingProduit.pieces_par_carton, prix_achat || existingProduit.prix_achat, prix_achat_piece || existingProduit.prix_achat_piece || 0, safeFournisseurId, stock_threshold !== undefined ? stock_threshold : existingProduit.stock_threshold, existingProduit.id], (err, resultsUpdate) => {
+            db.query(query, [quantite, prix_carton, prix_piece, safeCategoryId, description || existingProduit.description, nom_unite_gros || existingProduit.nom_unite_gros, unité || existingProduit.unité, pieces_par_carton || existingProduit.pieces_par_carton, prix_achat || existingProduit.prix_achat, finalPrixAchatPiece, safeFournisseurId, stock_threshold !== undefined ? stock_threshold : existingProduit.stock_threshold, existingProduit.id], (err, resultsUpdate) => {
                 if (err) {
                     console.error("Erreur mise à jour produit existant via import:", err);
                     return res.status(500).json({ message: 'Erreur lors de la mise à jour du produit', error: err.message });
@@ -79,7 +88,7 @@ exports.createProduit = (req, res) => {
                     if (errLink) console.error("Erreur liaison auto lors maj:", errLink);
 
                     // Si c'est un approvisionnement direct (pas un import) avec de la quantité (positive ou negative), créer une ligne d'historique d'achat
-                    const quantiteAjouteePieces = parseFloat(quantite);
+                    const quantiteAjouteePieces = safeParseFloat(quantite);
                     if (!importSourceId && quantiteAjouteePieces !== 0 && !isNaN(quantiteAjouteePieces)) {
                         const { historique_achat } = req.body;
 
@@ -93,7 +102,7 @@ exports.createProduit = (req, res) => {
                                 (errHist) => { if (errHist) console.error("Erreur enregistrement achat approvisionnement:", errHist); }
                             );
                         } else {
-                            const ratio = parseFloat(pieces_par_carton || existingProduit.pieces_par_carton) || 1;
+                            const ratio = safeParseFloat(pieces_par_carton || existingProduit.pieces_par_carton) || 1;
                             const dCartons = Math.floor(quantiteAjouteePieces / ratio);
                             const dPieces = quantiteAjouteePieces % ratio;
 
@@ -104,7 +113,9 @@ exports.createProduit = (req, res) => {
                                 );
                             }
                             if (dPieces > 0.0001) {
-                                const finalPrixAchatPiece = parseFloat(prix_achat_piece) > 0 ? prix_achat_piece : (existingProduit.prix_achat_piece > 0 ? existingProduit.prix_achat_piece : ((prix_achat || existingProduit.prix_achat || 0) / ratio));
+                                const pAchatClean = safeParseFloat(prix_achat || existingProduit.prix_achat || 0);
+                                const pAchatPieceClean = safeParseFloat(prix_achat_piece || 0);
+                                const finalPrixAchatPiece = pAchatPieceClean > 0 ? pAchatPieceClean : (safeParseFloat(existingProduit.prix_achat_piece) > 0 ? existingProduit.prix_achat_piece : (pAchatClean / ratio));
                                 db.query(
                                     'INSERT INTO produit_achat (nom, description, quantite, prix_achat, prix_vente, unite, category_id, produit_id, fournisseur_id, entrepot_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                                     [nom, 'Approvisionnement', dPieces, finalPrixAchatPiece, prix_piece || existingProduit.prix_piece || 0, (unité || existingProduit.unité || 'Détail').trim(), safeCategoryId, existingProduit.id, safeFournisseurId, req.body.entrepot_id || null]
@@ -138,7 +149,15 @@ exports.createProduit = (req, res) => {
         // Entrepôt ids
         const entrepotIds = Array.isArray(req.body.entrepot_ids) ? req.body.entrepot_ids : [];
 
-        db.query(query, [nom, description, nom_unite_gros || 'Gros', quantite, prix || prix_carton || 0, unité || 'Détail', safeCategoryId, pieces_par_carton, prix_carton, prix_piece, prix_achat || 0, prix_achat_piece || 0, safeFournisseurId, stock_threshold || 0], async (err, resultsInsert) => {
+        let finalPrixAchatPiece = safeParseFloat(prix_achat_piece || 0);
+        const ratioForPrice = safeParseFloat(pieces_par_carton || 1);
+        const pAchatClean = safeParseFloat(prix_achat || 0);
+        
+        if (finalPrixAchatPiece <= 0 && ratioForPrice > 1 && pAchatClean > 0) {
+            finalPrixAchatPiece = pAchatClean / ratioForPrice;
+        }
+
+        db.query(query, [nom, description, nom_unite_gros || 'Gros', quantite, prix || prix_carton || 0, unité || 'Détail', safeCategoryId, pieces_par_carton, prix_carton, prix_piece, prix_achat || 0, finalPrixAchatPiece, safeFournisseurId, stock_threshold || 0], async (err, resultsInsert) => {
             if (err) {
                 console.error("Erreur insertion produit:", err);
                 return res.status(500).json({
@@ -163,9 +182,9 @@ exports.createProduit = (req, res) => {
                 if (errLink) console.error("Erreur liaison auto lors creation:", errLink);
 
                 // 2. Si création directe avec stock (pas via import), historiser le stock initial
-                const quantiteInitialePieces = parseFloat(quantite);
+                const quantiteInitialePieces = safeParseFloat(quantite);
                 if (!importSourceId && quantiteInitialePieces > 0) {
-                    const ratio = parseFloat(pieces_par_carton) || 1;
+                    const ratio = safeParseFloat(pieces_par_carton) || 1;
                     const dCartons = Math.floor(quantiteInitialePieces / ratio);
                     const dPieces = quantiteInitialePieces % ratio;
 
@@ -176,7 +195,9 @@ exports.createProduit = (req, res) => {
                         );
                     }
                     if (dPieces > 0.0001) {
-                        const finalPrixAchatPiece = parseFloat(prix_achat_piece) > 0 ? prix_achat_piece : ((prix_achat || 0) / ratio);
+                        const pAchatClean = safeParseFloat(prix_achat || 0);
+                        const pAchatPieceClean = safeParseFloat(prix_achat_piece || 0);
+                        const finalPrixAchatPiece = pAchatPieceClean > 0 ? pAchatPieceClean : (pAchatClean / ratio);
                         db.query(
                             'INSERT INTO produit_achat (nom, description, quantite, prix_achat, prix_vente, unite, category_id, produit_id, fournisseur_id, entrepot_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                             [nom, 'Stock Initial', dPieces, finalPrixAchatPiece, prix_piece || 0, (unité || 'Détail').trim(), safeCategoryId, newId, safeFournisseurId, req.body.entrepot_id || null]
@@ -200,11 +221,11 @@ exports.updateProduit = (req, res) => {
     const { id } = req.params;
     const { nom, description, nom_unite_gros, quantite, prix, unité, category_id, pieces_par_carton, prix_carton, prix_piece, prix_achat, prix_achat_piece, fournisseur_id, stock_threshold } = req.body;
 
-    if (parseFloat(prix_carton || 0) <= 0) {
+    if (safeParseFloat(String(prix_carton || 0).replace(/\s/g, "")) <= 0) {
         return res.status(400).json({ message: 'Le prix de vente (Gros) doit être supérieur à 0' });
     }
 
-    if (parseInt(pieces_par_carton || 1) > 1 && parseFloat(prix_piece || 0) <= 0) {
+    if (parseInt(pieces_par_carton || 1) > 1 && safeParseFloat(String(prix_piece || 0).replace(/\s/g, "")) <= 0) {
         return res.status(400).json({ message: 'Le prix de vente au détail doit être supérieur à 0' });
     }
 
@@ -215,10 +236,10 @@ exports.updateProduit = (req, res) => {
         if (err) return res.status(500).json({ message: 'Erreur lecture ancienne quantité', error: err.message });
         if (oldRes.length === 0) return res.status(404).json({ message: 'Produit non trouvé' });
 
-        const oldQuantite = parseFloat(oldRes[0].quantite || 0);
-        const oldRatio = parseFloat(oldRes[0].pieces_par_carton || 1);
-        const newQuantite = parseFloat(quantite || 0);
-        const newRatio = parseFloat(pieces_par_carton || 1);
+        const oldQuantite = safeParseFloat(oldRes[0].quantite || 0);
+        const oldRatio = safeParseFloat(oldRes[0].pieces_par_carton || 1);
+        const newQuantite = safeParseFloat(quantite || 0);
+        const newRatio = safeParseFloat(pieces_par_carton || 1);
 
         console.log('[DEBUG Stock Update]', {
             id,
@@ -239,7 +260,15 @@ exports.updateProduit = (req, res) => {
 
         const updateQuery = 'UPDATE produits SET nom = ?, description = ?, nom_unite_gros = ?, quantite = ?, prix = ?, unité = ?, category_id = ?, pieces_par_carton = ?, prix_carton = ?, prix_piece = ?, prix_achat = ?, prix_achat_piece = ?, fournisseur_id = ?, stock_threshold = ? WHERE id = ?';
         
-        db.query(updateQuery, [nom, description, nom_unite_gros || 'Gros', quantite, prix || prix_carton || 0, unité || 'Détail', safeCategoryId, pieces_par_carton, prix_carton, prix_piece, prix_achat || 0, prix_achat_piece || 0, mainFournisseurId, stock_threshold || 0, id], async (err, results) => {
+        let finalPrixAchatPiece = safeParseFloat(String(String(prix_achat_piece || 0).replace(/\s/g, "")).replace(/\s/g, ''));
+        const currentRatioForPrice = safeParseFloat(String(pieces_par_carton || 1).replace(/\s/g, ""));
+        const pAchatClean = safeParseFloat(String(String(prix_achat || 0).replace(/\s/g, "")).replace(/\s/g, ''));
+
+        if (finalPrixAchatPiece <= 0 && currentRatioForPrice > 1 && pAchatClean > 0) {
+            finalPrixAchatPiece = pAchatClean / currentRatioForPrice;
+        }
+
+        db.query(updateQuery, [nom, description, nom_unite_gros || 'Gros', quantite, prix || prix_carton || 0, unité || 'Détail', safeCategoryId, pieces_par_carton, prix_carton, prix_piece, prix_achat || 0, finalPrixAchatPiece, mainFournisseurId, stock_threshold || 0, id], async (err, results) => {
             if (err) {
                 return res.status(500).json({ message: 'Erreur lors de la mise à jour du produit', error: err.message });
             }
@@ -271,7 +300,7 @@ exports.updateProduit = (req, res) => {
             if (Math.abs(deltaPieces) > 0.001) {
                 const isPositive = deltaPieces > 0;
                 let absDelta = Math.abs(deltaPieces);
-                const currentRatio = parseFloat(pieces_par_carton) || 1;
+                const currentRatio = safeParseFloat(pieces_par_carton) || 1;
 
                 const adjustLabel = isPositive ? 'Ajustement Modif (+)' : 'Ajustement Modif (-)';
                 const sign = isPositive ? 1 : -1;
@@ -298,7 +327,7 @@ exports.updateProduit = (req, res) => {
                         );
                     }
                     if (deltaPiecesRem !== 0) {
-                        const mappedPrixAchatPiece = parseFloat(prix_achat_piece) > 0 ? prix_achat_piece : ((prix_achat || 0) / currentRatio);
+                        const mappedPrixAchatPiece = safeParseFloat(prix_achat_piece) > 0 ? prix_achat_piece : ((prix_achat || 0) / currentRatio);
                         db.query(
                             'INSERT INTO produit_achat (nom, description, quantite, prix_achat, prix_vente, unite, category_id, produit_id, fournisseur_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
                             [nom, adjustLabel, deltaPiecesRem, mappedPrixAchatPiece, prix_piece || 0, unité || 'Détail', safeCategoryId, id, safeFournisseurId]
@@ -317,7 +346,7 @@ exports.updateProduit = (req, res) => {
                     }
                     
                     if (dPieces > 0.0001) {
-                        const mappedPrixAchatPiece = parseFloat(prix_achat_piece) > 0 ? prix_achat_piece : ((prix_achat || 0) / currentRatio);
+                        const mappedPrixAchatPiece = safeParseFloat(prix_achat_piece) > 0 ? prix_achat_piece : ((prix_achat || 0) / currentRatio);
                         db.query(
                             'INSERT INTO produit_achat (nom, description, quantite, prix_achat, prix_vente, unite, category_id, produit_id, fournisseur_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
                             [nom, adjustLabel, sign * dPieces, mappedPrixAchatPiece, prix_piece || 0, unité || 'Détail', safeCategoryId, id, safeFournisseurId]
@@ -396,7 +425,7 @@ exports.addQuantite = async (req, res) => {
 
     try {
         let nouvelleQuantite;
-        const quantiteAAjouter = parseFloat(quantite);
+        const quantiteAAjouter = safeParseFloat(quantite);
         if (isNaN(quantiteAAjouter) || quantiteAAjouter < 0.1) {
             throw new Error('Quantité invalide');
         }
@@ -406,20 +435,20 @@ exports.addQuantite = async (req, res) => {
         const produit = rows[0];
 
         // 1. Mettre à jour produits (stock ET nouveau prix d'achat)
-        nouvelleQuantite = parseFloat(produit.quantite) + quantiteAAjouter;
+        nouvelleQuantite = safeParseFloat(produit.quantite) + quantiteAAjouter;
         
         let pAchatFinal = produit.prix_achat || 0;
         let pAchatPieceFinal = produit.prix_achat_piece || 0;
 
-        if (newPrixAchat !== undefined && newPrixAchat !== null && !isNaN(parseFloat(newPrixAchat))) {
+        if (newPrixAchat !== undefined && newPrixAchat !== null && !isNaN(safeParseFloat(newPrixAchat))) {
             const isDetail = unite === 'piece' || unite === (produit.unité || 'Détail');
             const ratio = produit.pieces_par_carton || 1;
             
             if (isDetail && ratio > 1) {
-                pAchatPieceFinal = parseFloat(newPrixAchat);
+                pAchatPieceFinal = safeParseFloat(newPrixAchat);
                 pAchatFinal = pAchatPieceFinal * ratio;
             } else {
-                pAchatFinal = parseFloat(newPrixAchat);
+                pAchatFinal = safeParseFloat(newPrixAchat);
                 pAchatPieceFinal = ratio > 1 ? (pAchatFinal / ratio) : pAchatFinal;
             }
         }
@@ -431,10 +460,10 @@ exports.addQuantite = async (req, res) => {
 
         // 2. Historique : Log l'achat avec le prix spécifique fourni
         let targetUnite = (unite || produit.nom_unite_gros || 'Gros').trim();
-        let valToAdd = rawQuantite !== undefined ? parseFloat(rawQuantite) : quantiteAAjouter;
+        let valToAdd = rawQuantite !== undefined ? safeParseFloat(rawQuantite) : quantiteAAjouter;
         
         // On log le prix unitaire tel qu'il a été saisi
-        const pAchatLog = (newPrixAchat !== undefined && newPrixAchat !== null) ? parseFloat(newPrixAchat) : (unite === 'piece' ? pAchatPieceFinal : pAchatFinal);
+        const pAchatLog = (newPrixAchat !== undefined && newPrixAchat !== null) ? safeParseFloat(newPrixAchat) : (unite === 'piece' ? pAchatPieceFinal : pAchatFinal);
         const pVenteLog = (unite === 'piece' ? produit.prix_piece : produit.prix_carton) || 0;
         const safeEntrepotId = (req.body.entrepot_id !== undefined && req.body.entrepot_id !== null && req.body.entrepot_id !== '') ? req.body.entrepot_id : null;
 
@@ -468,7 +497,7 @@ exports.removeQuantite = async (req, res) => {
 
     try {
         let nouvelleQuantite;
-        const quantiteARetirer = parseFloat(quantite);
+        const quantiteARetirer = safeParseFloat(quantite);
         if (isNaN(quantiteARetirer) || quantiteARetirer < 0.1) {
             throw new Error('Quantité invalide');
         }
@@ -477,14 +506,14 @@ exports.removeQuantite = async (req, res) => {
         if (rows.length === 0) throw new Error('Produit non trouvé');
         const produit = rows[0];
 
-        if (parseFloat(produit.quantite) < quantiteARetirer) {
+        if (safeParseFloat(produit.quantite) < quantiteARetirer) {
             const ratio = produit.pieces_par_carton || 1;
             const formatStock = (qty, ratio, grosName, detailName) => {
                 const cartons = Math.floor(qty / (ratio || 1));
                 const pieces = (qty % (ratio || 1)).toFixed(3).replace(/\.?0+$/, "");
                 if (ratio > 1) {
                     let str = `${cartons} ${grosName || 'carton'}(s)`;
-                    if (parseFloat(pieces) > 0) str += ` et ${pieces} ${detailName || 'pièce'}(s)`;
+                    if (safeParseFloat(pieces) > 0) str += ` et ${pieces} ${detailName || 'pièce'}(s)`;
                     return str;
                 }
                 return `${qty} ${grosName || 'unité(s)'}`;
@@ -494,12 +523,12 @@ exports.removeQuantite = async (req, res) => {
         }
 
         // 1. Mettre à jour produits
-        nouvelleQuantite = parseFloat(produit.quantite) - quantiteARetirer;
+        nouvelleQuantite = safeParseFloat(produit.quantite) - quantiteARetirer;
         await queryAsync('UPDATE produits SET quantite = ? WHERE id = ?', [nouvelleQuantite, id]);
 
         // 2. Historique
         let targetUnite = (unite || produit.unité || 'Détail').trim();
-        let valToSub = rawQuantite !== undefined ? parseFloat(rawQuantite) : quantiteARetirer;
+        let valToSub = rawQuantite !== undefined ? safeParseFloat(rawQuantite) : quantiteARetirer;
 
         // NO CONSOLIDATION: Retirer sur le même standard
         const isDetail = unite === 'piece' || unite === (produit.unité || 'Détail');

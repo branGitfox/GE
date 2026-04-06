@@ -1,4 +1,5 @@
 const db = require('../db');
+const { safeParseFloat } = require('../utils/priceHelper');
 const { logAction } = require('../utils/logger');
 
 // Récupérer toutes les dépenses (avec filtre optionnel entre 2 dates)
@@ -41,7 +42,7 @@ exports.getDepensesStats = (req, res) => {
         if (err) {
             return res.status(500).json({ message: 'Erreur interne du serveur', error: err.message });
         }
-        res.status(200).json({ totalDepenses: parseFloat(results[0].totalDepenses || 0).toFixed(2) });
+        res.status(200).json({ totalDepenses: safeParseFloat(results[0].totalDepenses || 0).toFixed(2) });
     });
 };
 

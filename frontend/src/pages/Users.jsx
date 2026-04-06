@@ -28,10 +28,11 @@ const Users = () => {
         email: '',
         mdp: '',
         confirmMdp: '',
-        role: 'user'
+        role_id: ''
     });
     const [selectedImage, setSelectedImage] = useState(null);
     const [imagePreview, setImagePreview] = useState(null);
+    const [availableRoles, setAvailableRoles] = useState([]);
 
     // Deletion Modal State
     const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
@@ -40,7 +41,22 @@ const Users = () => {
 
     useEffect(() => {
         fetchUsers();
+        fetchRoles();
     }, []);
+
+    const fetchRoles = async () => {
+        try {
+            const response = await axios.get(`${API_URL}/api/roles`, {
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+            });
+            setAvailableRoles(response.data);
+            if (response.data.length > 0) {
+                setCreateForm(prev => ({ ...prev, role_id: response.data[0].id }));
+            }
+        } catch (error) {
+            console.error('Erreur lors de la récupération des rôles:', error);
+        }
+    };
 
     useEffect(() => {
         const results = users.filter(user =>
@@ -125,7 +141,7 @@ const Users = () => {
             nom: user.nom,
             prenom: user.prenom,
             email: user.email,
-            role: user.role
+            role_id: user.role_id || ''
         });
     };
 
@@ -175,7 +191,7 @@ const Users = () => {
             email: '',
             mdp: '',
             confirmMdp: '',
-            role: 'user'
+            role_id: availableRoles.length > 0 ? availableRoles[0].id : ''
         });
         setSelectedImage(null);
         setImagePreview(null);
@@ -196,7 +212,7 @@ const Users = () => {
             formData.append('email', createForm.email);
             formData.append('mdp', createForm.mdp);
             formData.append('confirmMdp', createForm.confirmMdp);
-            formData.append('role', createForm.role);
+            formData.append('role_id', createForm.role_id);
             if (selectedImage) {
                 formData.append('image', selectedImage);
             }
@@ -347,14 +363,15 @@ const Users = () => {
                                         Rôle <span className="text-red-500">*</span>
                                     </label>
                                     <select
-                                        name="role"
-                                        value={createForm.role}
+                                        name="role_id"
+                                        value={createForm.role_id}
                                         onChange={handleCreateFormChange}
                                         required
                                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                                     >
-                                        <option value="Admin">Admin</option>
-                                        <option value="SuperAdmin">SuperAdmin</option>
+                                        {availableRoles.map(r => (
+                                            <option key={r.id} value={r.id}>{r.nom}</option>
+                                        ))}
                                     </select>
                                 </div>
 
@@ -416,6 +433,7 @@ const Users = () => {
                     title="Utilisateurs en attente de validation"
                     icon={FaUserCheck}
                     users={pendingUsers}
+                    availableRoles={availableRoles}
                     isLoading={isLoading}
                     editingUser={editingUser}
                     editForm={editForm}
@@ -433,6 +451,7 @@ const Users = () => {
                     title="Tous les utilisateurs"
                     icon={FaUsers}
                     users={validatedUsers}
+                    availableRoles={availableRoles}
                     isLoading={isLoading}
                     editingUser={editingUser}
                     editForm={editForm}

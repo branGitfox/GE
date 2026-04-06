@@ -66,17 +66,33 @@ const Dashboard = () => {
   useEffect(() => {
     if (!user) { navigate('/login'); return; }
     if (user.image) setImage(user.image);
+    
   }, [user, navigate]);
+
+  const [hasAccess, setHasAccess] = useState(true);
+
+  const checkAccess = (path) => {
+    if (user?.role === 'SuperAdmin') return true;
+    const allowed = user?.permissions || validRoutes[user?.role] || [];
+    return allowed.some(p => {
+      if (p === '/dashboard') {
+         return path === '/dashboard' || path === '/dashboard/';
+      }
+      return path === p || path.startsWith(p + '/');
+    });
+  };
 
   useEffect(() => {
     if (user) {
-      const allowed = validRoutes[user.role];
-      if (!allowed.includes(location.pathname)) navigate('/dashboard');
-      else localStorage.setItem('lastVisitedPath', location.pathname);
+      if (!checkAccess(location.pathname)) {
+        setHasAccess(false);
+      } else {
+        setHasAccess(true);
+        localStorage.setItem('lastVisitedPath', location.pathname);
+      }
     }
-  }, [location.pathname, user, navigate]);
+  }, [location.pathname, user]);
 
-  // Build groups, conditionally injecting admin items
   const groups = NAV_GROUPS.map(g => {
     if (g.label === 'Admin' && user?.role === 'SuperAdmin') {
       return {
@@ -145,27 +161,34 @@ const Dashboard = () => {
                 {group.items.map(item => {
                   const Icon = item.icon;
                   const isActive = location.pathname === item.path;
+                  const hasLinkAccess = checkAccess(item.path);
                   return (
                     <li key={item.path}>
-                      <Link
-                        to={item.path}
-                        onClick={() => { closeSidebar(); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                        className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all duration-200 group ${
-                          isActive
-                            ? 'bg-gradient-to-r ' + item.color + ' text-white shadow-lg'
-                            : 'text-white/50 hover:text-white hover:bg-white/8'
-                        }`}
-                      >
-                        <div className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all ${
-                          isActive
-                            ? 'bg-white/20'
-                            : 'bg-white/5 group-hover:bg-white/10'
-                        }`}>
-                          <Icon size={14} />
+                      {hasLinkAccess ? (
+                        <Link
+                          to={item.path}
+                          onClick={() => { closeSidebar(); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                          className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all duration-200 group ${
+                            isActive
+                              ? 'bg-gradient-to-r ' + item.color + ' text-white shadow-lg'
+                              : 'text-white/50 hover:text-white hover:bg-white/8'
+                          }`}
+                        >
+                          <div className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all ${isActive ? 'bg-white/20' : 'bg-white/5 group-hover:bg-white/10'}`}>
+                            <Icon size={14} />
+                          </div>
+                          <span className="font-medium truncate flex-1">{item.name}</span>
+                          {isActive && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-white/60"></span>}
+                        </Link>
+                      ) : (
+                        <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all duration-200 group opacity-50 grayscale cursor-not-allowed text-white/50">
+                          <div className="w-7 h-7 rounded-lg flex items-center justify-center bg-white/5">
+                            <Icon size={14} />
+                          </div>
+                          <span className="font-medium truncate flex-1">{item.name}</span>
+                          <span className="ml-auto text-xs text-white/40">🔒</span>
                         </div>
-                        <span className="font-medium truncate">{item.name}</span>
-                        {isActive && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-white/60"></span>}
-                      </Link>
+                      )}
                     </li>
                   );
                 })}
@@ -189,8 +212,22 @@ const Dashboard = () => {
           <div className="mb-4">
             <LowStockAlert />
           </div>
-          <div className="w-full">
-            <Outlet />
+          <div className="relative w-full min-h-[500px]">
+            {!hasAccess ? (
+               <div className="flex items-center justify-center rounded-xl bg-white/10 backdrop-blur-md border border-gray-200/50 shadow-sm transition-all duration-500 min-h-[500px]">
+                  <div className="bg-white p-8 rounded-2xl shadow-xl border border-red-50 text-center max-w-sm transform scale-100 animate-fade-in-up">
+                    <div className="w-16 h-16 bg-gradient-to-br from-red-100 to-rose-50 rounded-full flex items-center justify-center mx-auto mb-4 shadow-inner">
+                      <FiX className="text-3xl text-red-500" />
+                    </div>
+                    <h3 className="text-2xl font-bold text-gray-900 mb-2">Accès Refusé</h3>
+                    <p className="text-gray-500 mb-6 text-sm">Vous n'avez pas les permissions nécessaires pour afficher ou modifier cette page.</p>
+                  </div>
+               </div>
+            ) : (
+              <div className="transition-all duration-500">
+                <Outlet />
+              </div>
+            )}
           </div>
         </div>
       </div>

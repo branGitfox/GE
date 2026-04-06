@@ -171,8 +171,9 @@ export const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   totalLeft: {
-    width: '50%',
+    width: '45%',
     paddingRight: 20,
+    
   },
   totalRight: {
     width: '50%',
@@ -203,6 +204,7 @@ export const styles = StyleSheet.create({
     borderTopColor: '#000',
   },
   totalLabel: {
+    fontSize:8,
     position: 'relative',
     left: -40,
     fontWeight: 'bold',

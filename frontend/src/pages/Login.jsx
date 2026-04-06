@@ -55,8 +55,8 @@ const Login = () => {
 
   useEffect(() => {
     if (user) {
-      const lastRoute = localStorage.getItem('lastVisitedPath');
-      const allowedRoutes = validRoutes[user.role];
+      const lastRoute = localStorage.getItem('lastVisitedPath') || '/dashboard';
+      const allowedRoutes = user.permissions || validRoutes[user.role] || [];
       const defaultRoute = user.role === 'SuperAdmin' ? '/dashboard/users' : '/dashboard/clients';
 
       // Redirige seulement si la route est valide
@@ -84,8 +84,8 @@ const Login = () => {
     try {
       const response = await axios.post(`${API_URL}/api/users/login`, { email, mdp });
       const { token, user: backendUser } = response.data;
-      const { role, email: userEmail, id, nom, prenom, image } = backendUser;
-      const userData = { email: userEmail, role, id, nom, prenom, image };
+      const { role, email: userEmail, id, nom, prenom, image, permissions } = backendUser;
+      const userData = { email: userEmail, role, id, nom, prenom, image, permissions };
 
       console.log('🔑 Login successful, saving token:', token);
       localStorage.setItem('token', token);
@@ -95,12 +95,14 @@ const Login = () => {
       const currentUrl = window.location.pathname;
       if (currentUrl === "/dashboard/produits" || currentUrl === "/dashboard/clients") {
         navigate(currentUrl);
-      } else if (role === "Admin") {
-        navigate('/dashboard/clients');
       } else if (role === 'SuperAdmin') {
         navigate('/dashboard/users');
+      } else if (permissions && permissions.length > 0) {
+        navigate(permissions[0]);
+      } else if (role === "Admin") {
+        navigate('/dashboard/clients');
       } else {
-        navigate('/');
+        navigate('/dashboard');
       }
     } catch (err) {
       setError(err.response?.data?.message || 'Erreur lors de la connexion.');

@@ -4,6 +4,7 @@ import axios from 'axios';
 import { API_URL } from '../../config';
 import { ClipLoader } from 'react-spinners';
 import Pagination from './Pagination';
+import PriceInput from '../PriceInput';
 import ProduitHistoriqueModal from './ProduitHistoriqueModal';
 import { toast } from 'react-toastify';
 
@@ -161,11 +162,13 @@ const ProduitTable = ({
                             {mode[produit.id] === 'add' && (
                               <div className="flex items-center gap-2 mb-2">
                                 <span className="text-[10px] text-emerald-600 font-semibold">Prix achat:</span>
-                                <input type="number" step="1000" min="0"
+                                <PriceInput
+                                  name={produit.id.toString()}
                                   value={prixAchatInput[produit.id] ?? 0}
                                   onChange={e => setPrixAchatInput(p => ({ ...p, [produit.id]: e.target.value }))}
                                   className="w-24 px-2 py-1 border border-gray-200 rounded-lg text-xs"
-                                  disabled={localLoading[produit.id]} />
+                                  disabled={localLoading[produit.id]}
+                                />
                               </div>
                             )}
                             <div className="flex gap-1.5">

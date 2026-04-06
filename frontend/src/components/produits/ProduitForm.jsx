@@ -7,6 +7,7 @@ import {
 } from 'react-icons/fa';
 import { ClipLoader } from 'react-spinners';
 import SearchSelect from '../factures/SearchSelect';
+import PriceInput from '../PriceInput';
 
 const ProduitForm = ({
   formData,
@@ -32,6 +33,20 @@ const ProduitForm = ({
       setHasDetail(false);
     }
   }, [formData.pieces_par_carton, editingProduit]);
+
+  // Auto-calculer le prix d'achat à la pièce s'il est vide
+  useEffect(() => {
+    const ratio = parseFloat(formData.pieces_par_carton) || 1;
+    const pAchatGros = parseFloat(formData.prix_achat) || 0;
+    const pAchatPiece = parseFloat(formData.prix_achat_piece) || 0;
+
+    if (hasDetail && ratio > 1 && pAchatGros > 0 && pAchatPiece === 0) {
+      setFormData(prev => ({
+        ...prev,
+        prix_achat_piece: pAchatGros / ratio
+      }));
+    }
+  }, [formData.prix_achat, formData.pieces_par_carton, hasDetail]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -227,18 +242,27 @@ const ProduitForm = ({
             {/* Prix vente Gros */}
             <div>
               <label className={labelCls}><FaDollarSign className="inline mr-1 text-violet-400" /> Prix Vente ({formData.nom_unite_gros || 'Gros'})</label>
-              <input type="number" name="prix_carton" value={formData.prix_carton || ''} onChange={handleChange}
-                step="1000" required className={inputCls} />
+              <PriceInput
+                name="prix_carton"
+                value={formData.prix_carton || ''}
+                onChange={handleChange}
+                className={inputCls}
+                placeholder="Prix en gros"
+              />
             </div>
 
             {/* Prix vente Détail */}
-            {hasDetail && (
-              <div>
+              <div className={!hasDetail ? 'opacity-50 pointer-events-none' : ''}>
                 <label className={labelCls}><FaDollarSign className="inline mr-1 text-violet-400" /> Prix Vente ({formData.unité || 'Détail'})</label>
-                <input type="number" name="prix_piece" value={formData.prix_piece || ''} onChange={handleChange}
-                  step="1000" required={hasDetail} className={inputCls} />
+                <PriceInput
+                  name="prix_piece"
+                  value={formData.prix_piece || ''}
+                  onChange={handleChange}
+                  className={inputCls}
+                  required={hasDetail}
+                  placeholder="Prix au détail"
+                />
               </div>
-            )}
 
             {/* Seuil alerte */}
             <div className="bg-red-50 border border-red-100 rounded-xl p-3">
@@ -320,18 +344,25 @@ const ProduitForm = ({
               <p className="text-xs font-bold text-amber-600 uppercase tracking-wider">💰 Prix d'Achat</p>
               <div>
                 <label className="text-xs text-gray-500 mb-1 block">{formData.nom_unite_gros || 'Gros'}</label>
-                <input type="number" name="prix_achat" value={formData.prix_achat || ''} onChange={handleChange}
-                  step="1000" required
-                  className="w-full px-3 py-2 rounded-lg border border-amber-200 bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 text-sm" />
+                <PriceInput
+                  name="prix_achat"
+                  value={formData.prix_achat || ''}
+                  onChange={handleChange}
+                  required
+                  className="w-full px-3 py-2 rounded-lg border border-amber-200 bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 text-sm"
+                  placeholder="Prix d'achat gros"
+                />
               </div>
-              {hasDetail && (
-                <div>
+                <div className={!hasDetail ? 'opacity-50 pointer-events-none' : ''}>
                   <label className="text-xs text-gray-500 mb-1 block">{formData.unité || 'Détail'} (optionnel)</label>
-                  <input type="number" name="prix_achat_piece" value={formData.prix_achat_piece || ''} onChange={handleChange}
-                    step="1000" placeholder="Calculé auto si vide"
-                    className="w-full px-3 py-2 rounded-lg border border-amber-200 bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 text-sm" />
+                  <PriceInput
+                    name="prix_achat_piece"
+                    value={formData.prix_achat_piece || ''}
+                    onChange={handleChange}
+                    className="w-full px-3 py-2 rounded-lg border border-amber-200 bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 text-sm"
+                    placeholder="Calculé auto si vide"
+                  />
                 </div>
-              )}
               <p className="text-xs text-amber-500">⚡ Utilisé pour les futurs mouvements de stock · Les prix antérieurs sont préservés</p>
             </div>
           </div>

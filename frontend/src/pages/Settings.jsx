@@ -3,6 +3,7 @@ import axios from 'axios';
 import { FiDownload, FiUpload, FiDatabase, FiAlertCircle, FiTrash2 } from 'react-icons/fi';
 import { API_URL } from '../config';
 import ConfirmModal from '../components/ConfirmModal';
+import RoleManagement from '../components/settings/RoleManagement';
 
 const Settings = () => {
     const [loading, setLoading] = useState(false);
@@ -181,6 +182,9 @@ const Settings = () => {
                 </div>
             )}
 
+            {/* Role Management Section */}
+            <RoleManagement />
+
             {/* Database Backup Section */}
             <div className="bg-white p-6 rounded-xl shadow-md border border-gray-100">
                 <div className="flex items-center mb-4">
@@ -306,7 +310,7 @@ const Settings = () => {
                         <FiAlertCircle className="mr-2" /> Réinitialisation Complète
                     </h3>
                     <p className="text-sm text-red-700">
-                        Cette action supprimera <strong>TOUTES les données</strong> de l'application (produits, factures, clients, fournisseurs, dépenses, entrepôts, logs, etc.).
+                        Cette action supprimera <strong>TOUTES les données</strong> de l'application apart (utilisateurs, clients, fournisseurs, entrepôts, roles, pages).
                         Seuls les comptes utilisateurs seront conservés. Tous les numéros (IDs) repartiront de 1.
                     </p>
                 </div>
@@ -329,7 +333,7 @@ const Settings = () => {
                 onClose={() => setIsResetConfirmModalOpen(false)}
                 onConfirm={confirmReset}
                 title="⚠️ Réinitialisation Complète"
-                message="Êtes-vous ABSOLUMENT SUR ? Cette action supprimera TOUTES les données de l'application (Produits, Factures, Clients, Dépenses, Entrepot, etc.). Seuls les comptes utilisateurs seront conservés. Cette action est IRRÉVERSIBLE et tous les IDs reviendront à 1."
+                message="Êtes-vous ABSOLUMENT SUR ? Cette action supprimera TOUTES les données de l'application apart (utilisateurs, clients, fournisseurs, entrepôts, roles, pages). Seuls les comptes utilisateurs seront conservés. Cette action est IRRÉVERSIBLE et tous les IDs reviendront à 1."
                 isLoading={resetLoading}
             />
         </div>

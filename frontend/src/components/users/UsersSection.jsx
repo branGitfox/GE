@@ -6,6 +6,7 @@ const UsersSection = ({
   title, 
   icon: Icon, 
   users, 
+  availableRoles,
   isLoading, 
   editingUser, 
   editForm, 
@@ -34,6 +35,7 @@ const UsersSection = ({
       ) : users.length > 0 ? (
         <UsersTable
           users={users}
+          availableRoles={availableRoles}
           editingUser={editingUser}
           editForm={editForm}
           handleInputChange={handleInputChange}

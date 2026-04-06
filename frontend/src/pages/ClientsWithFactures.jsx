@@ -22,6 +22,7 @@ import {
 } from 'react-icons/fi';
 import PDFButton from '../components/PDFButton';
 import Pagination from '../components/factures/Pagination';
+import PriceInput from '../components/PriceInput';
 import ConfirmModal from '../components/ConfirmModal';
 
 const ITEMS_PER_PAGE = 20;
@@ -740,8 +741,8 @@ const ClientsWithFactures = () => {
               </div>
               <div className="mb-6">
                 <label className="block text-sm font-medium text-gray-700 mb-2">Montant du versement (Fmg)</label>
-                <input
-                  type="number" step="1000"
+                <PriceInput
+                  name="paymentAmount"
                   value={paymentAmount}
                   onChange={(e) => setPaymentAmount(e.target.value)}
                   placeholder="0 Fmg"
@@ -757,8 +758,8 @@ const ClientsWithFactures = () => {
               )}
               <div className="mb-6">
                 <label className="block text-sm font-medium text-gray-700 mb-2 font-bold text-orange-600">Remise exceptionnelle (Fmg)</label>
-                <input
-                  type="number" step="1000"
+                <PriceInput
+                  name="remiseAmount"
                   value={remiseAmount}
                   onChange={(e) => setRemiseAmount(e.target.value)}
                   placeholder="0 Fmg"

@@ -6,6 +6,7 @@ import {
   FaTimes, FaExclamationTriangle, FaChevronLeft, FaChevronRight, FaTruck, FaSearch
 } from 'react-icons/fa';
 import SearchSelect from '../components/factures/SearchSelect';
+import PriceInput from '../components/PriceInput';
 import ConfirmModal from '../components/ConfirmModal';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -610,7 +611,8 @@ const Depenses = () => {
                     </label>
                     <div className="relative">
                       <input
-                        type="number" step="0.01"
+                        type="number" step="1"
+                        min={1}
                         name={selectedProduit ? 'quantiteAjoutee' : 'quantite'}
                         value={selectedProduit ? quantiteAjoutee : formData.quantite}
                         onChange={(e) => {
@@ -681,13 +683,13 @@ const Depenses = () => {
                 <div className="bg-gray-50 rounded-2xl p-6 border border-gray-100 flex flex-col gap-4">
                   <div className="space-y-2">
                     <label className="block text-[11px] font-black text-gray-400 uppercase tracking-widest ml-1">Prix d'Achat ({formData.unite})</label>
-                    <input
-                      type="number" step="1000"
+                    <PriceInput
                       name="prix_achat"
                       value={formData.prix_achat}
                       onChange={handleInputChange}
                       className="w-full bg-white border-2 border-transparent rounded-xl px-5 py-3 text-lg focus:outline-none focus:border-orange-500 transition-all font-black text-emerald-600 shadow-sm"
                       required
+                      placeholder="0"
                     />
                   </div>
                   
@@ -908,13 +910,13 @@ const Depenses = () => {
                       <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider ml-1">
                         Montant (Ar) <span className="text-red-500">*</span>
                       </label>
-                      <input
-                        type="number" step="1000"
+                      <PriceInput
                         name="montant"
                         value={formData.montant}
                         onChange={handleInputChange}
                         className="w-full bg-gray-50 border-0 border-b-2 border-gray-100 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-0 focus:border-indigo-500/50 focus:bg-white transition-all shadow-sm font-bold text-indigo-600"
                         required
+                        placeholder="0"
                       />
                     </div>
                   ) : (
@@ -922,8 +924,7 @@ const Depenses = () => {
                       <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider ml-1">
                         Prix d'achat unitaire ({formData.unite}) <span className="text-red-500">*</span>
                       </label>
-                      <input
-                        type="number" step="1000"
+                      <PriceInput
                         name="prix_achat"
                         value={formData.prix_achat}
                         onChange={handleInputChange}
@@ -1054,14 +1055,12 @@ const Depenses = () => {
                       <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider ml-1">
                         Prix d'achat unitaire (Détail)
                       </label>
-                      <input
-                        type="number" step="1000"
+                      <PriceInput
                         name="prix_achat_piece"
                         value={formData.prix_achat_piece}
                         onChange={handleInputChange}
                         className="w-full bg-gray-50 border-0 border-b-2 border-gray-100 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-0 focus:border-indigo-500/50 focus:bg-white transition-all shadow-sm font-medium"
                         placeholder="Optionnel"
-                        min="0"
                       />
                     </div>
                   )}
