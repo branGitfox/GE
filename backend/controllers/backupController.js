@@ -4,14 +4,38 @@ const path = require('path');
 const fs = require('fs');
 require('dotenv').config();
 
+const TABLE_ORDER = [
+    'roles',
+    'pages',
+    'role_pages',
+    'categories',
+    'clients',
+    'fournisseurs',
+    'entrepots',
+    'users',
+    'produits',
+    'depenses',
+    'factures',
+    'produit_achat',
+    'produit_entrepot',
+    'produit_fournisseurs',
+    'system_logs'
+];
+
 // Helper function to escape SQL strings
 function escapeSqlString(str) {
     if (str === null || str === undefined) return 'NULL';
     if (typeof str === 'number') return str.toString();
     if (str instanceof Date) {
-        // Check if the date is valid to avoid RangeError: Invalid time value
         if (isNaN(str.getTime())) return 'NULL';
-        return "'" + str.toISOString().slice(0, 19).replace('T', ' ') + "'";
+        // Use local time components to avoid TZ shifting
+        const year = str.getFullYear();
+        const month = String(str.getMonth() + 1).padStart(2, '0');
+        const day = String(str.getDate()).padStart(2, '0');
+        const hours = String(str.getHours()).padStart(2, '0');
+        const minutes = String(str.getMinutes()).padStart(2, '0');
+        const seconds = String(str.getSeconds()).padStart(2, '0');
+        return `'${year}-${month}-${day} ${hours}:${minutes}:${seconds}'`;
     }
     return "'" + str.toString().replace(/'/g, "''").replace(/\\/g, '\\\\') + "'";
 }
@@ -21,17 +45,14 @@ exports.backupDatabase = async (req, res) => {
     try {
         const backupDir = path.join(__dirname, '../backups');
 
-        // Create backups directory if it doesn't exist
         if (!fs.existsSync(backupDir)) {
             fs.mkdirSync(backupDir, { recursive: true });
         }
 
-        // Generate filename with timestamp
         const timestamp = new Date().toISOString().replace(/:/g, '-').split('.')[0];
         const filename = `backup_${process.env.DB_NAME}_${timestamp}.sql`;
         const filepath = path.join(backupDir, filename);
 
-        // Start building SQL dump
         let sqlDump = `-- MySQL Database Backup\n`;
         sqlDump += `-- Host: ${process.env.DB_HOST}\n`;
         sqlDump += `-- Database: ${process.env.DB_NAME}\n`;
@@ -40,117 +61,75 @@ exports.backupDatabase = async (req, res) => {
         sqlDump += `SET time_zone = "+00:00";\n`;
         sqlDump += `SET FOREIGN_KEY_CHECKS = 0;\n\n`;
 
-        // Get all tables
-        db.query('SHOW TABLES', (err, tables) => {
+        // Get all tables from DB to check if they exist
+        db.query('SHOW TABLES', async (err, tables) => {
             if (err) {
                 console.error('Error getting tables:', err);
-                return res.status(500).json({
-                    message: 'Erreur lors de la récupération des tables',
-                    error: err.message
-                });
+                return res.status(500).json({ message: 'Erreur lors de la récupération des tables', error: err.message });
             }
 
-            const tableNames = tables.map(t => Object.values(t)[0]);
-            let processedTables = 0;
+            const existingTables = tables.map(t => Object.values(t)[0]);
+            
+            // Use TABLE_ORDER but only for tables that actually exist
+            const tableNames = TABLE_ORDER.filter(t => existingTables.includes(t));
+            
+            // Add any other tables not in TABLE_ORDER at the end
+            existingTables.forEach(t => {
+                if (!tableNames.includes(t)) tableNames.push(t);
+            });
 
             if (tableNames.length === 0) {
-                return res.status(500).json({
-                    message: 'Aucune table trouvée dans la base de données'
-                });
+                return res.status(500).json({ message: 'Aucune table trouvée' });
             }
 
-            // Process each table
-            tableNames.forEach((tableName) => {
-                // Get CREATE TABLE statement
-                db.query(`SHOW CREATE TABLE \`${tableName}\``, (err, createResult) => {
-                    if (err) {
-                        console.error(`Error getting CREATE TABLE for ${tableName}:`, err);
-                        processedTables++;
-                        return;
-                    }
+            const queryAsync = (sql) => new Promise((resolve, reject) => {
+                db.query(sql, (err, result) => err ? reject(err) : resolve(result));
+            });
 
+            try {
+                for (const tableName of tableNames) {
+                    // Get CREATE TABLE
+                    const createResult = await queryAsync(`SHOW CREATE TABLE \`${tableName}\``);
                     const createTableSQL = createResult[0]['Create Table'];
                     sqlDump += `\n-- Table structure for \`${tableName}\`\n`;
                     sqlDump += `DROP TABLE IF EXISTS \`${tableName}\`;\n`;
                     sqlDump += createTableSQL + ';\n\n';
 
-                    // Get table data
-                    db.query(`SELECT * FROM \`${tableName}\``, (err, rows) => {
-                        if (err) {
-                            console.error(`Error getting data from ${tableName}:`, err);
-                            processedTables++;
-                            return;
-                        }
+                    // Get Data
+                    const rows = await queryAsync(`SELECT * FROM \`${tableName}\``);
+                    if (rows.length > 0) {
+                        sqlDump += `-- Data for table \`${tableName}\`\n`;
+                        const columns = Object.keys(rows[0]);
+                        const columnList = columns.map(col => `\`${col}\``).join(', ');
 
-                        if (rows.length > 0) {
-                            sqlDump += `-- Data for table \`${tableName}\`\n`;
+                        rows.forEach((row, index) => {
+                            const values = columns.map(col => escapeSqlString(row[col])).join(', ');
+                            if (index === 0) {
+                                sqlDump += `INSERT INTO \`${tableName}\` (${columnList}) VALUES\n`;
+                            }
+                            sqlDump += `(${values})`;
+                            sqlDump += (index < rows.length - 1) ? ',\n' : ';\n\n';
+                        });
+                    }
+                }
 
-                            // Get column names
-                            const columns = Object.keys(rows[0]);
-                            const columnList = columns.map(col => `\`${col}\``).join(', ');
+                sqlDump += `\nSET FOREIGN_KEY_CHECKS = 1;\n`;
 
-                            // Insert data in batches
-                            rows.forEach((row, index) => {
-                                const values = columns.map(col => escapeSqlString(row[col])).join(', ');
+                fs.writeFileSync(filepath, sqlDump, 'utf8');
 
-                                if (index === 0) {
-                                    sqlDump += `INSERT INTO \`${tableName}\` (${columnList}) VALUES\n`;
-                                }
-
-                                sqlDump += `(${values})`;
-
-                                if (index < rows.length - 1) {
-                                    sqlDump += ',\n';
-                                } else {
-                                    sqlDump += ';\n\n';
-                                }
-                            });
-                        }
-
-                        processedTables++;
-
-                        // When all tables are processed, write file and send
-                        if (processedTables === tableNames.length) {
-                            sqlDump += `\nSET FOREIGN_KEY_CHECKS = 1;\n`;
-                            fs.writeFile(filepath, sqlDump, 'utf8', (err) => {
-                                if (err) {
-                                    console.error('Error writing backup file:', err);
-                                    return res.status(500).json({
-                                        message: 'Erreur lors de l\'écriture du fichier',
-                                        error: err.message
-                                    });
-                                }
-
-                                // Send file for download
-                                res.download(filepath, filename, async (err) => {
-                                    if (err) {
-                                        console.error('Download error:', err);
-                                        return res.status(500).json({
-                                            message: 'Erreur lors du téléchargement du backup'
-                                        });
-                                    }
-                                    
-                                    await logAction(req.user?.id, 'backup', 'system', null, null, null, `Exportation de la base de données: ${filename}`);
-
-                                    // Optionally delete the file after download
-                                    // setTimeout(() => {
-                                    //   if (fs.existsSync(filepath)) {
-                                    //     fs.unlinkSync(filepath);
-                                    //   }
-                                    // }, 5000);
-                                });
-                            });
-                        }
-                    });
+                res.download(filepath, filename, async (err) => {
+                    if (err) console.error('Download error:', err);
+                    await logAction(req.user?.id, 'backup', 'system', null, null, null, `Exportation de la base de données: ${filename}`);
                 });
-            });
+
+            } catch (procErr) {
+                console.error('Error processing tables:', procErr);
+                res.status(500).json({ message: 'Erreur lors de la génération du dump', error: procErr.message });
+            }
         });
     } catch (error) {
         console.error('Backup error:', error);
-        res.status(500).json({
-            message: 'Erreur lors de la création du backup',
-            error: error.message
-        });
+        res.status(500).json({ message: 'Erreur lors du backup', error: error.message });
     }
 };
 
@@ -201,7 +180,7 @@ exports.importDatabase = async (req, res) => {
                 const totalStatements = Array.isArray(results) ? results.length : 1;
 
                 return res.status(200).json({
-                    message: 'Import réussi !',
+                    message: 'Import réussi ! VEUILLEZ VOUS DÉCONNECTER ET VOUS RECONNECTER pour synchroniser votre session avec la nouvelle base de données.',
                     executedStatements: totalStatements,
                     totalStatements: totalStatements
                 });

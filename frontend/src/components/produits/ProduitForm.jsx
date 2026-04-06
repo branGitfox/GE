@@ -34,19 +34,6 @@ const ProduitForm = ({
     }
   }, [formData.pieces_par_carton, editingProduit]);
 
-  // Auto-calculer le prix d'achat à la pièce s'il est vide
-  useEffect(() => {
-    const ratio = parseFloat(formData.pieces_par_carton) || 1;
-    const pAchatGros = parseFloat(formData.prix_achat) || 0;
-    const pAchatPiece = parseFloat(formData.prix_achat_piece) || 0;
-
-    if (hasDetail && ratio > 1 && pAchatGros > 0 && pAchatPiece === 0) {
-      setFormData(prev => ({
-        ...prev,
-        prix_achat_piece: pAchatGros / ratio
-      }));
-    }
-  }, [formData.prix_achat, formData.pieces_par_carton, hasDetail]);
 
   useEffect(() => {
     const fetchData = async () => {

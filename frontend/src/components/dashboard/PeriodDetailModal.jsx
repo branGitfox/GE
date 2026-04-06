@@ -44,7 +44,26 @@ const PeriodDetailModal = ({ isOpen, onClose, initialRange, title }) => {
 
     useEffect(() => {
         if (isOpen) {
-            fetchInvoices();
+            // Synchronisation immédiate des dates à l'ouverture pour éviter l'appel sans filtre
+            const syncAndFetch = async () => {
+                const start = initialRange.startDate || '';
+                const end = initialRange.endDate || '';
+                setStartDate(start);
+                setEndDate(end);
+                setPage(1);
+                
+                // On passe directement les valeurs synchronisées à fetchInvoices si nécessaire
+                // Mais l'effet ci-dessous s'en chargera aussi au prochain render.
+                // Pour être sûr à 100%, on attend que les states soient mis à jour ou on fetch ici.
+            };
+            syncAndFetch();
+        }
+    }, [isOpen, initialRange]);
+
+    useEffect(() => {
+        // Ne fetcher que si on a des dates (si c'est un mode filtré) ou si isOpen vient de changer
+        if (isOpen && startDate !== undefined && endDate !== undefined) {
+             fetchInvoices();
         }
     }, [isOpen, page, startDate, endDate]);
 

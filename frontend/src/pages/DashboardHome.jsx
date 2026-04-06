@@ -17,13 +17,38 @@ const ITEMS_PER_PAGE = 10;
 const DashboardHome = () => {
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
     const [startDate, setStartDate] = useState(() => {
-        const d = new Date();
-        return `${d.getFullYear()}-01-01`;
+        return `${new Date().getFullYear()}-01-01`;
     });
     const [endDate, setEndDate] = useState(() => {
-        const d = new Date();
-        return d.toLocaleDateString('en-CA');
+        return new Date().toLocaleDateString('en-CA');
     });
+    const [activePeriod, setActivePeriod] = useState('year');
+
+    const handlePeriodChange = (period) => {
+        const now = new Date();
+        let start = '';
+        let end = now.toLocaleDateString('en-CA');
+        
+        if (period === 'today') {
+            start = end;
+        } else if (period === 'week') {
+            const startOfWeek = new Date(now);
+            const day = startOfWeek.getDay() || 7;
+            if (day !== 1) startOfWeek.setHours(-24 * (day - 1));
+            start = startOfWeek.toLocaleDateString('en-CA');
+        } else if (period === 'month') {
+            start = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+        } else if (period === 'year') {
+            start = `${now.getFullYear()}-01-01`;
+        }
+        
+        setStartDate(start);
+        setEndDate(end);
+        setActivePeriod(period);
+        if (period === 'year') {
+            setSelectedYear(now.getFullYear());
+        }
+    };
 
     const [stats, setStats] = useState({
         totalRevenue: 0,
@@ -323,33 +348,52 @@ const DashboardHome = () => {
                 </div>
 
                 <div className="bg-white p-3 rounded-xl shadow-sm border border-gray-200 flex flex-wrap items-center gap-4">
+                    {/* Sélecteur Rapide */}
+                    <div className="flex bg-gray-100 p-1 rounded-lg">
+                        {[
+                            { id: 'today', label: 'Aujourd\'hui' },
+                            { id: 'week', label: 'Semaine' },
+                            { id: 'month', label: 'Mois' },
+                            { id: 'year', label: 'Année' }
+                        ].map((p) => (
+                            <button
+                                key={p.id}
+                                onClick={() => handlePeriodChange(p.id)}
+                                className={`px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-wider transition-all ${
+                                    activePeriod === p.id 
+                                    ? 'bg-white text-indigo-600 shadow-sm shadow-indigo-100' 
+                                    : 'text-gray-500 hover:text-gray-700'
+                                }`}
+                            >
+                                {p.label}
+                            </button>
+                        ))}
+                    </div>
+
+                    <div className="h-6 w-px bg-gray-200 hidden sm:block"></div>
+
                     <div className="flex items-center gap-2">
-                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Période :</label>
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Dates :</label>
                         <div className="flex items-center gap-2 bg-gray-50 p-1 rounded-lg border border-gray-100">
                             <input
                                 type="date"
                                 value={startDate}
-                                onChange={(e) => setStartDate(e.target.value)}
+                                onChange={(e) => {
+                                    setStartDate(e.target.value);
+                                    setActivePeriod('custom');
+                                }}
                                 className="bg-transparent border-none text-sm font-semibold text-gray-700 focus:ring-0 cursor-pointer"
                             />
                             <span className="text-gray-400 font-bold">→</span>
                             <input
                                 type="date"
                                 value={endDate}
-                                onChange={(e) => setEndDate(e.target.value)}
+                                onChange={(e) => {
+                                    setEndDate(e.target.value);
+                                    setActivePeriod('custom');
+                                }}
                                 className="bg-transparent border-none text-sm font-semibold text-gray-700 focus:ring-0 cursor-pointer"
                             />
-                            <button
-                                onClick={() => {
-                                    const d = new Date();
-                                    setStartDate(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`);
-                                    setEndDate(d.toLocaleDateString('en-CA'));
-                                }}
-                                className="p-1.5 text-gray-400 hover:text-indigo-600 transition-colors"
-                                title="Réinitialiser (ce mois)"
-                            >
-                                <FiRotateCcw size={14} />
-                            </button>
                         </div>
                     </div>
 
@@ -364,6 +408,7 @@ const DashboardHome = () => {
                                 setSelectedYear(year);
                                 setStartDate(`${year}-01-01`);
                                 setEndDate(`${year}-12-31`);
+                                setActivePeriod('year');
                             }}
                             className="bg-gray-50 border-none rounded-lg text-sm font-bold text-indigo-700 focus:ring-2 focus:ring-indigo-200 cursor-pointer py-1.5 pl-3 pr-8"
                         >

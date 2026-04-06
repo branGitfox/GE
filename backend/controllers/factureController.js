@@ -320,6 +320,11 @@ exports.getDashboardStats = async (req, res) => {
 
     if (startDate && endDate) {
       query = "SELECT prix_total, date_facture, liste_articles, paiement, remise, date_paiement, dernier_paiement FROM factures WHERE (status IS NULL OR status = 'facture') AND (YEAR(date_facture) IN (?) OR date_facture BETWEEN ? AND ?)";
+      const startYear = new Date(startDate).getFullYear();
+      const endYear = new Date(endDate).getFullYear();
+      if (!yearsNeeded.has(startYear)) yearsNeeded.add(startYear);
+      if (!yearsNeeded.has(endYear)) yearsNeeded.add(endYear);
+      queryParams[0] = Array.from(yearsNeeded);
       queryParams.push(startDate, endDate);
     }
 

@@ -73,6 +73,7 @@ exports.createProduit = (req, res) => {
             const currentPrixAchat = safeParseFloat(prix_achat || existingProduit.prix_achat || 0);
             let finalPrixAchatPiece = safeParseFloat(prix_achat_piece || existingProduit.prix_achat_piece || 0);
             
+            // Calcul automatique du prix d'achat à la pièce si non fourni ou égal à 0
             if (finalPrixAchatPiece <= 0 && currentRatioForPrice > 1 && currentPrixAchat > 0) {
                 finalPrixAchatPiece = currentPrixAchat / currentRatioForPrice;
             }
@@ -153,6 +154,7 @@ exports.createProduit = (req, res) => {
         const ratioForPrice = safeParseFloat(pieces_par_carton || 1);
         const pAchatClean = safeParseFloat(prix_achat || 0);
         
+        // Calcul automatique du prix d'achat à la pièce pour nouveau produit
         if (finalPrixAchatPiece <= 0 && ratioForPrice > 1 && pAchatClean > 0) {
             finalPrixAchatPiece = pAchatClean / ratioForPrice;
         }
@@ -264,6 +266,7 @@ exports.updateProduit = (req, res) => {
         const currentRatioForPrice = safeParseFloat(String(pieces_par_carton || 1).replace(/\s/g, ""));
         const pAchatClean = safeParseFloat(String(String(prix_achat || 0).replace(/\s/g, "")).replace(/\s/g, ''));
 
+        // Calcul automatique du prix d'achat à la pièce lors de la mise à jour
         if (finalPrixAchatPiece <= 0 && currentRatioForPrice > 1 && pAchatClean > 0) {
             finalPrixAchatPiece = pAchatClean / currentRatioForPrice;
         }
