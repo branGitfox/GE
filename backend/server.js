@@ -101,8 +101,8 @@ app.use((err, req, res, next) => {
 });
 
 server.listen(port, () => {
-  console.log(`🚀 Serveur backend démarré sur http://localhost:${port}`);
-  console.log(`🟢 Socket.IO écoute sur ws://localhost:${port}`);
+  console.log(`🚀 Serveur backend démarré sur http://0.0.0.0:${port}`);
+  console.log(`🟢 Socket.IO écoute sur ws://0.0.0.0:${port}`);
 });
 
 process.on('uncaughtException', (err) => {
