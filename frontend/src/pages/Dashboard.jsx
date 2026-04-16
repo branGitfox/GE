@@ -44,6 +44,7 @@ const NAV_GROUPS = [
   {
     label: 'Admin',
     items: [
+      { name: 'Utilisateurs', path: '/dashboard/users', icon: FiUsers, color: 'from-indigo-500 to-violet-500' },
       { name: 'Paramètres', path: '/dashboard/settings', icon: FiSettings, color: 'from-gray-500 to-slate-600' },
       { name: 'Historique', path: '/dashboard/logs', icon: FiActivity, color: 'from-indigo-600 to-blue-700' },
     ]
@@ -93,18 +94,7 @@ const Dashboard = () => {
     }
   }, [location.pathname, user]);
 
-  const groups = NAV_GROUPS.map(g => {
-    if (g.label === 'Admin' && user?.role === 'SuperAdmin') {
-      return {
-        ...g,
-        items: [
-          { name: 'Utilisateurs', path: '/dashboard/users', icon: FiUsers, color: 'from-indigo-500 to-violet-500' },
-          ...g.items
-        ]
-      };
-    }
-    return g;
-  });
+  const groups = NAV_GROUPS
 
   return (
     <div className="flex h-screen bg-gray-50">
