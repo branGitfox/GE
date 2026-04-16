@@ -46,9 +46,8 @@ const SearchSelect = ({
     const handleClickOutside = (event) => {
       if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
         setIsOpen(false);
-        if (allowCustom && searchTerm && !selectedOption && filteredOptions.length === 0) {
-          // Si on a tapé quelque chose qui n'est pas dans la liste et qu'on sort
-          // On garde ce qu'on a tapé comme valeur (déjà fait via handleCustomChange si on veut être réactif)
+        if (!allowCustom && !selectedOption) {
+          setSearchTerm("");
         }
       }
     };

@@ -560,32 +560,32 @@ const Depenses = () => {
                 {/* Produit */}
                 <div className="space-y-2 md:col-span-2">
                   <label className="block text-[11px] font-black text-gray-400 uppercase tracking-widest ml-1">Rechercher un Produit</label>
-                  <SearchSelect
-                    value={formData.nom}
-                    options={produits.map(p => ({ value: p.nom, label: p.nom, ...p }))}
-                    onChange={(val, opt) => {
-                      if (opt) {
-                        const ratio = opt.pieces_par_carton || 1;
-                        const stockEnGros = opt.quantite / ratio;
-                        setSelectedProduit(opt);
-                        setFormData({
-                          ...formData,
-                          type: 'achat',
-                          nom: opt.nom,
-                          prix_achat: opt.prix_achat || 0,
-                          unite: opt.nom_unite_gros || 'Carton',
-                          fournisseur_id: opt.fournisseur_id || '',
-                          quantite: stockEnGros 
-                        });
-                        setQuantiteAjoutee('');
-                      } else {
-                        setSelectedProduit(null);
-                        setFormData({ ...formData, type: 'achat', nom: val });
-                      }
-                    }}
-                    placeholder="Tapez le nom du produit..."
-                    allowCustom={true}
-                  />
+                    <SearchSelect
+                      value={formData.nom}
+                      options={produits.map(p => ({ value: p.nom, label: p.nom, ...p }))}
+                      onChange={(val, opt) => {
+                        if (opt) {
+                          const ratio = opt.pieces_par_carton || 1;
+                          const stockEnGros = opt.quantite / ratio;
+                          setSelectedProduit(opt);
+                          setFormData({
+                            ...formData,
+                            type: 'achat',
+                            nom: opt.nom,
+                            prix_achat: opt.prix_achat || 0,
+                            unite: opt.nom_unite_gros || 'Carton',
+                            fournisseur_id: opt.fournisseur_id || '',
+                            quantite: stockEnGros 
+                          });
+                          setQuantiteAjoutee('');
+                        } else {
+                          setSelectedProduit(null);
+                          setFormData({ ...formData, type: 'achat', nom: '' });
+                        }
+                      }}
+                      placeholder="Tapez le nom du produit..."
+                      allowCustom={false}
+                    />
                 </div>
 
                 {/* Date */}
@@ -737,7 +737,12 @@ const Depenses = () => {
                 </button>
                 <button
                   type="submit"
-                  className="px-10 py-3.5 rounded-2xl bg-gradient-to-r from-orange-500 to-orange-600 text-white font-black shadow-lg shadow-orange-200 hover:shadow-orange-300 hover:scale-[1.02] active:scale-[0.98] transition-all uppercase tracking-widest text-[10px]"
+                  disabled={!selectedProduit}
+                  className={`px-10 py-3.5 rounded-2xl font-black shadow-lg transition-all uppercase tracking-widest text-[10px] ${
+                    !selectedProduit 
+                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed shadow-none' 
+                      : 'bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-orange-200 hover:shadow-orange-300 hover:scale-[1.02] active:scale-[0.98]'
+                  }`}
                 >
                   Confirmer l'Approvisionnement
                 </button>
@@ -887,11 +892,11 @@ const Depenses = () => {
                             setQuantiteAjoutee('');
                           } else {
                             setSelectedProduit(null);
-                            setFormData({ ...formData, nom: val });
+                            setFormData({ ...formData, nom: '' });
                           }
                         }}
                         placeholder="Chercher un produit..."
-                        allowCustom={true}
+                        allowCustom={false}
                       />
                     ) : (
                       <input
