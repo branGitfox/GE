@@ -94,7 +94,18 @@ const Dashboard = () => {
     }
   }, [location.pathname, user]);
 
-  const groups = NAV_GROUPS
+  // const groups = NAV_GROUPS.map(g => {
+  //   if (g.label === 'Admin' && user?.role === 'SuperAdmin') {
+  //     return {
+  //       ...g,
+  //       items: [
+  //         { name: 'Utilisateurs', path: '/dashboard/users', icon: FiUsers, color: 'from-indigo-500 to-violet-500' },
+  //         ...g.items
+  //       ]
+  //     };
+  //   }
+  //   return g;
+  // });
 
   return (
     <div className="flex h-screen bg-gray-50">
@@ -144,7 +155,7 @@ const Dashboard = () => {
 
         {/* Navigation */}
         <div className="flex-1 overflow-y-auto py-3 px-3 scrollbar-thin">
-          {groups.map(group => (
+          {NAV_GROUPS.map(group => (
             <div key={group.label} className="mb-4">
               <p className="text-[10px] font-bold text-white/30 uppercase tracking-widest px-3 mb-1.5">{group.label}</p>
               <ul className="space-y-0.5">
