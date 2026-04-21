@@ -110,6 +110,38 @@ const Proformas = () => {
     fetchData();
   }, [fetchData]);
 
+  // Load draft from localStorage on mount or when exiting edit mode
+  useEffect(() => {
+    if (!isEditMode) {
+      const savedArticles = localStorage.getItem('proforma_draft_articles');
+      if (savedArticles) {
+        try {
+          const parsed = JSON.parse(savedArticles);
+          if (Array.isArray(parsed) && parsed.length > 0 && nouvelleFacture.liste_articles.length === 0) {
+            setNouvelleFacture(prev => ({
+              ...prev,
+              liste_articles: parsed,
+              prix_total: calculerMontantTotal(parsed)
+            }));
+          }
+        } catch (error) {
+          console.error("Error loading proforma draft from localStorage:", error);
+        }
+      }
+    }
+  }, [isEditMode]);
+
+  // Save items to localStorage whenever they change
+  useEffect(() => {
+    if (!isEditMode) {
+      if (nouvelleFacture.liste_articles.length > 0) {
+        localStorage.setItem('proforma_draft_articles', JSON.stringify(nouvelleFacture.liste_articles));
+      } else {
+        localStorage.removeItem('proforma_draft_articles');
+      }
+    }
+  }, [nouvelleFacture.liste_articles, isEditMode]);
+
   const filteredFactures = useMemo(() => {
     return factures.filter(facture => {
       const clientName = (facture.client_nom || '').toLowerCase();
@@ -298,6 +330,7 @@ const Proformas = () => {
     });
     setIsEditMode(false);
     setEditingFactureId(null);
+    localStorage.removeItem('proforma_draft_articles');
   }, []);
 
   const handleEditFacture = useCallback((facture) => {
