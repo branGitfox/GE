@@ -85,7 +85,7 @@ const Register = () => {
       </div>
 
       {/* Formulaire */}
-      <div className={`relative bg - white / 90 backdrop - blur - sm shadow - xl rounded - 2xl p - 8 max - w - md w - full transition - all duration - 500 transform ${animate ? 'scale-100 opacity-100' : 'scale-95 opacity-0'} text - gray - 800 z - 10`}>
+      <div className={`relative bg-white/90   shadow-xl rounded-2xl p-8 max-w-md w-full transition-all duration-500 transform ${animate ? 'scale-100 opacity-100' : 'scale-95 opacity-0'} text-gray-800 z-10`}>
         <div className="text-center mb-8">
           <h2 className="text-3xl font-bold text-blue-600 mb-2">Créer un compte</h2>
           <div className="w-20 h-1 bg-blue-400 mx-auto rounded-full"></div>
