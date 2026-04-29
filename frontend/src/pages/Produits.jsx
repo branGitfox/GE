@@ -19,7 +19,10 @@ const EMPTY_FORM = {
 const Produits = () => {
     const [produits, setProduits] = useState([]);
     const [filteredProduits, setFilteredProduits] = useState([]);
-    const [formData, setFormData] = useState(EMPTY_FORM);
+    const [formData, setFormData] = useState(() => {
+        const saved = localStorage.getItem('produitFormDataDraft');
+        return saved ? JSON.parse(saved) : EMPTY_FORM;
+    });
     const [editingProduit, setEditingProduit] = useState(null);
     const [isLoading, setIsLoading] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
@@ -41,6 +44,12 @@ const Produits = () => {
     useEffect(() => {
         if (topRef.current) topRef.current.scrollIntoView({ behavior: 'auto' });
     }, []);
+
+    useEffect(() => {
+        if (!editingProduit) {
+            localStorage.setItem('produitFormDataDraft', JSON.stringify(formData));
+        }
+    }, [formData, editingProduit]);
 
     useEffect(() => {
         const lower = searchTerm.toLowerCase();
@@ -107,6 +116,7 @@ const Produits = () => {
 
             toast.success(editingProduit ? 'Produit modifié ✅' : 'Produit ajouté ✅');
             setFormData(EMPTY_FORM);
+            localStorage.removeItem('produitFormDataDraft');
             setEditingProduit(null);
             fetchProduits();
             setSearchTerm('');
@@ -131,6 +141,7 @@ const Produits = () => {
             });
             toast.success('Stock mis à jour via importation ✅');
             setFormData(EMPTY_FORM);
+            localStorage.removeItem('produitFormDataDraft');
             fetchProduits();
             setActiveTab('list');
         } catch (err) {
@@ -186,6 +197,7 @@ const Produits = () => {
 
     const handleCancel = () => {
         setFormData(EMPTY_FORM);
+        localStorage.removeItem('produitFormDataDraft');
         setEditingProduit(null);
         setActiveTab('list');
     };
@@ -242,7 +254,7 @@ const Produits = () => {
                         <FaList size={13} /> Liste des Produits
                     </button>
                     <button
-                        onClick={() => { setActiveTab('add'); if (!editingProduit) setFormData(EMPTY_FORM); }}
+                        onClick={() => { setActiveTab('add'); }}
                         className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all ${activeTab === 'add' ? 'bg-white text-violet-700 shadow-md' : 'text-white/80 hover:text-white hover:bg-white/20'}`}
                     >
                         <FaPlus size={13} />
