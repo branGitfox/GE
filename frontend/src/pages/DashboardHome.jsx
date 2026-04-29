@@ -808,8 +808,8 @@ const DashboardHome = () => {
                                     <tbody>
                                         {paginate(filteredRecentProducts, productPage).map((p) => {
                                             const isCartonActive = p.pieces_par_carton > 1;
-                                            // Priorité : unite depuis produit_achat → nom_unite_gros → unité
-                                            const unite_gros = p.unite_achat || p.nom_unite_gros || 'Unité';
+                                            // Priorité : nom_unite_gros → unite depuis produit_achat → 'Unité'
+                                            const unite_gros = p.nom_unite_gros || p.unite_achat || 'Unité';
                                             const unite_detail = p['unité'] || 'Pièce';
                                             const stockStr = isCartonActive
                                                 ? `${Math.floor(p.quantite / p.pieces_par_carton)} ${unite_gros}${p.quantite % p.pieces_par_carton > 0 ? `, ${(p.quantite % p.pieces_par_carton).toString().replace('.', ',')} ${unite_detail}` : ''}`
