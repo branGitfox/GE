@@ -288,6 +288,22 @@ const Factures = () => {
     });
   }, []);
 
+  const handleUpdateArticlePrice = useCallback((index, newPrice) => {
+    setNouvelleFacture(prev => {
+      const updatedArticles = [...prev.liste_articles];
+      updatedArticles[index] = {
+        ...updatedArticles[index],
+        prix: newPrice
+      };
+
+      return {
+        ...prev,
+        liste_articles: updatedArticles,
+        prix_total: calculerMontantTotal(updatedArticles),
+      };
+    });
+  }, []);
+
   const handleDeleteFacture = useCallback(async (factureId) => {
     setFactureToDelete(factureId);
     setIsConfirmModalOpen(true);
@@ -466,6 +482,7 @@ const Factures = () => {
             handleSelectProduit={handleSelectProduit}
             handleAjouterArticle={handleAjouterArticle}
             handleSupprimerArticle={handleSupprimerArticle}
+            handleUpdateArticlePrice={handleUpdateArticlePrice}
             handleAnnuler={handleAnnuler}
             handleSubmit={handleSubmit}
             clientOptions={clientOptions}

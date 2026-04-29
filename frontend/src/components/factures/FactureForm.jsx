@@ -1,8 +1,10 @@
-import React, { useRef, useEffect } from "react";
-import { FaUser, FaBox, FaPlus, FaTrash, FaTimes, FaSave, FaFileAlt, FaComment } from 'react-icons/fa';
+import React, { useRef, useEffect, useState } from "react";
+import { FaUser, FaBox, FaPlus, FaTrash, FaTimes, FaSave, FaFileAlt, FaComment, FaLock, FaLockOpen } from 'react-icons/fa';
 import { ClipLoader } from 'react-spinners';
 import SearchSelect from './SearchSelect';
 import PriceInput from '../PriceInput';
+import PasswordModal from '../PasswordModal';
+import { toast } from 'react-toastify';
 
 const FactureForm = ({
   nouvelleFacture,
@@ -14,11 +16,15 @@ const FactureForm = ({
   handleChangeArticle,
   handleAjouterArticle,
   handleSupprimerArticle,
+  handleUpdateArticlePrice,
   handleAnnuler,
   handleSubmit,
   isEditMode,
   isProforma = false
 }) => {
+  const [isPriceUnlocked, setIsPriceUnlocked] = useState(false);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  
   const articleListRef = useRef(null);
   const prevArticlesCount = useRef(nouvelleFacture.liste_articles.length);
 
@@ -31,6 +37,17 @@ const FactureForm = ({
     }
     prevArticlesCount.current = nouvelleFacture.liste_articles.length;
   }, [nouvelleFacture.liste_articles.length]);
+
+  const handlePasswordConfirm = (password) => {
+    // Password is ADMIN123
+    if (password === 'ADMIN123') {
+      setIsPriceUnlocked(true);
+      setIsAuthModalOpen(false);
+      toast.success("Prix déverrouillés !");
+    } else {
+      toast.error("Mot de passe incorrect.");
+    }
+  };
 
   return (
     <div className="mb-8 bg-white p-6 rounded-xl shadow-sm border border-gray-100">
@@ -271,14 +288,24 @@ const FactureForm = ({
           </div>
 
           <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Prix Unitaire</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2 flex justify-between items-center">
+              <span>Prix Unitaire</span>
+              <button 
+                type="button" 
+                onClick={() => isPriceUnlocked ? setIsPriceUnlocked(false) : setIsAuthModalOpen(true)}
+                className={`text-xs flex items-center gap-1 px-2 py-0.5 rounded transition ${isPriceUnlocked ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                title={isPriceUnlocked ? "Verrouiller les prix" : "Déverrouiller pour modifier le prix"}
+              >
+                {isPriceUnlocked ? <><FaLockOpen size={10} /> Déverrouillé</> : <><FaLock size={10} /> Verrouillé</>}
+              </button>
+            </label>
 
             <PriceInput
               name="prix"
               value={nouvelArticle.prix}
               onChange={handleChangeArticle}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition bg-gray-100"
-              disabled
+              className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition ${isPriceUnlocked ? 'bg-white border-blue-300 ring-1 ring-blue-100' : 'bg-gray-100 border-gray-300'}`}
+              disabled={!isPriceUnlocked}
             />
           </div>
 
@@ -315,7 +342,17 @@ const FactureForm = ({
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 text-center">{article.quantite}</td>
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 text-center capitalize">{article.type_vente === 'carton' ? 'En gros' : 'En détail'}</td>
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 text-center">{article.unité}</td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 text-center">{new Intl.NumberFormat('fr-FR').format(article.prix)} FMG</td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 text-center">
+                        {isPriceUnlocked ? (
+                          <PriceInput
+                            value={article.prix}
+                            onChange={(e) => handleUpdateArticlePrice(index, e.target.value)}
+                            className="w-32 px-2 py-1 border border-blue-200 rounded text-center focus:ring-1 focus:ring-blue-500 outline-none"
+                          />
+                        ) : (
+                          `${new Intl.NumberFormat('fr-FR').format(article.prix)} FMG`
+                        )}
+                      </td>
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 text-center">{new Intl.NumberFormat('fr-FR').format(article.quantite * article.prix)} FMG</td>
                       <td className="px-4 py-3 whitespace-nowrap text-right text-sm font-medium">
                         <button
@@ -408,6 +445,13 @@ const FactureForm = ({
           {isEditMode ? (isProforma ? 'Modifier le Devis' : 'Modifier la Facture') : (isProforma ? 'Enregistrer le Devis' : 'Enregistrer la Facture')}
         </button>
       </div>
+
+      <PasswordModal 
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        onConfirm={handlePasswordConfirm}
+        message="Veuillez saisir le mot de passe administrateur pour modifier les prix de vente."
+      />
     </div>
   );
 };
