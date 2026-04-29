@@ -39,8 +39,8 @@ const FactureForm = ({
   }, [nouvelleFacture.liste_articles.length]);
 
   const handlePasswordConfirm = (password) => {
-    // Password is ADMIN123
-    if (password === 'ADMIN123') {
+
+    if (password === import.meta.env.VITE_PASSCODE) {
       setIsPriceUnlocked(true);
       setIsAuthModalOpen(false);
       toast.success("Prix déverrouillés !");
